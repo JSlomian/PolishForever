@@ -1,0 +1,5 @@
+package-as: PolishForever
+
+ignore:
+  - README.md
+  - .gitignore

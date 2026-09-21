@@ -1,0 +1,27 @@
+## Interface: 16001, 11509
+## Title: PolishForever
+## Notes: Polish quest and gossip text for WoW: Forever, with per-category toggles (/pl).
+## Version: @project-version@
+## Author: Jan Słomian
+## SavedVariables: PolishForeverDB
+## X-Category: Localization
+
+Core.lua
+Data\Declension.lua
+Data\Quests.lua
+Data\Gossip.lua
+Data\Items.lua
+Data\Spells.lua
+Data\Skills.lua
+Data\UI.lua
+Data\Places.lua
+Data\Misc.lua
+Modules\Quests.lua
+Modules\Gossip.lua
+Modules\Talents.lua
+Modules\Skills.lua
+Modules\Abilities.lua
+Modules\Items.lua
+Modules\Menus.lua
+Debug.lua
+Config.lua
