@@ -1,0 +1,3 @@
+local _, PF = ...
+PF.RaceForms = {}
+PF.ClassForms = {}

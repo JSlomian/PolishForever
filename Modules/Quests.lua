@@ -56,20 +56,40 @@ local function Apply()
 end
 
 -- Objective tracker (the "Quests" list on the right). Structure, from /pl dump on the beta client:
--- QuestObjectiveTracker.ContentsFrame -> blocks (block.poiQuestID, block.HeaderText) -> lines
+-- QuestObjectiveTracker.ContentsFrame -> blocks (block.poiQuestID, block.HeaderText, block.height) -> lines
 -- (line.Text, line.objectiveKey). Objective lines like "0/6 Prairie Wolf Paw" are built by the game
 -- from item/creature names, so only titles and the "ready to turn in" text are translated here.
-local function setIfChanged(fs, text, kind)
+--
+-- Rescale note: Blizzard's tracker computes each block's height (and therefore where the NEXT
+-- block gets anchored) from the English text *before* our hook ever runs -- EndLayout stacks
+-- blocks using that already-frozen `block.height`. Polish text is often longer and wraps onto
+-- more lines, so swapping the text afterward without correcting `block.height` leaves later
+-- blocks/lines anchored too high and overlapping (this is what the screenshot in the report
+-- showed). We fix it by measuring the wrapped-text height before/after each SetText and folding
+-- the delta into the block's height so the tracker's own layout math stacks everything correctly.
+local function setIfChanged(fs, text, kind, block)
     if fs and text and text ~= "" and fs:GetText() ~= text then
+        local before = fs.GetStringHeight and fs:GetStringHeight() or 0
         PF.SetText(fs, text, kind)
+        local after = fs.GetStringHeight and fs:GetStringHeight() or 0
+        local delta = after - before
+        if delta ~= 0 and block and type(block.height) == "number" then
+            block.height = block.height + delta
+        end
+        return delta
     end
+    return 0
 end
 
+local applyingTracker = false
+
 local function ApplyTracker()
-    if not PF:IsEnabled("Quests") then return end
+    if applyingTracker or not PF:IsEnabled("Quests") then return end
     local tracker = QuestObjectiveTracker
     local contents = tracker and tracker.ContentsFrame
     if not (contents and contents.GetChildren) then return end
+    applyingTracker = true
+    local grew = false
     for _, block in ipairs({ contents:GetChildren() }) do
         local id = block.poiQuestID
         local q = id and PF.Quests and PF.Quests[id]
@@ -78,13 +98,29 @@ local function ApplyTracker()
             local current = header and header:GetText()
             if current then
                 local prefix = current:match("^(%[[^%]]*%]%s*)") or ""
-                setIfChanged(header, prefix .. PF.Expand(q[TITLE]), "body")
+                if setIfChanged(header, prefix .. PF.Expand(q[TITLE]), "body", block) ~= 0 then grew = true end
             end
             for _, line in ipairs({ block:GetChildren() }) do
                 if line.objectiveKey == "QuestComplete" and line.Text then
-                    setIfChanged(line.Text, PF.Expand(q[OBJECTIVES]), "body")
+                    if setIfChanged(line.Text, PF.Expand(q[OBJECTIVES]), "body", block) ~= 0 then grew = true end
                 end
             end
+            if block.SetHeight and type(block.height) == "number" then
+                block:SetHeight(block.height)
+            end
+        end
+    end
+    applyingTracker = false
+    -- Re-run the tracker's own stacking pass now that block heights reflect the Polish text;
+    -- setIfChanged above is idempotent (checks GetText() first) so this doesn't loop or re-fetch
+    -- English text -- it just repositions blocks/lines using the corrected heights.
+    if grew then
+        if type(tracker.EndLayout) == "function" then
+            applyingTracker = true
+            tracker:EndLayout()
+            applyingTracker = false
+        elseif type(contents.Layout) == "function" then
+            contents:Layout()
         end
     end
 end

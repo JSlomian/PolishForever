@@ -4,10 +4,12 @@ _G.PolishForever = PF
 local NBSP = "\194\160" -- marks text we already replaced (WoWpoPolsku does the same)
 PF.NBSP = NBSP
 
+-- Cinzel (Google Fonts, SIL OFL 1.1, see Fonts/OFL.txt) -- full Polish glyph coverage,
+-- fantasy/engraved look. Shipped as our own tracked files (not pack-derived).
 local FONT_DIR = "Interface\\AddOns\\" .. ADDON .. "\\Fonts\\"
 PF.Fonts = {
-    body = FONT_DIR .. "frizquadratatt_pl.ttf",
-    title = FONT_DIR .. "morpheus_pl.ttf",
+    body = FONT_DIR .. "Cinzel-Regular.ttf",
+    title = FONT_DIR .. "Cinzel-Bold.ttf",
 }
 
 PF.modules = {}

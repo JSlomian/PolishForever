@@ -3,6 +3,7 @@
 ## Notes: Polish quest and gossip text for WoW: Forever, with per-category toggles (/pl).
 ## Version: @project-version@
 ## Author: Jan Słomian
+## X-License: MIT (code) / CC-BY-4.0 (translation data, see LICENSE)
 ## SavedVariables: PolishForeverDB
 ## X-Category: Localization
 
