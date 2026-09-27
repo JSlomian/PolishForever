@@ -210,7 +210,7 @@ end
 -- lack some Polish glyphs, which is why the addon ships its own.
 -- "title" text gets a couple points larger, on top of the Cinzel-Bold face already used for that
 -- kind, so it actually reads as a heading rather than same-size-but-different-font body text.
-local KIND_SIZE_BOOST = { title = 2 }
+local KIND_SIZE_BOOST = { title = 1 }
 function PF.SetText(fs, text, kind)
     if not fs or not text or text == "" then return false end
     if not fs.pfFont then
