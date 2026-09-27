@@ -139,30 +139,20 @@ end
 -- Which part of the quest was actually on screen when Report was clicked, so the filed issue
 -- says e.g. "quest 366 -- progress" instead of just the bare ID -- a reader otherwise has no way
 -- to know whether the reporter meant the title, the objectives, or the turn-in text.
--- Returns (part, current) where `current` is a plain string for a single field, or a list of
--- {label, text} when more than one field is on screen at once (the accept dialogue shows
--- objectives AND description together -- these used to get silently concatenated into one
--- unlabeled blob, which read like the whole thing was one field and gave no way to tell where
--- one ends and the other begins).
-local function currentQuestPart(q)
-    if shown(QuestFrameRewardPanel) then
-        return "rewards/completion", q and PF.Expand(q[COMPLETION])
-    elseif shown(QuestFrameProgressPanel) then
-        return "progress (in-progress dialogue)", q and PF.Expand(q[PROGRESS])
-    elseif shown(QuestFrameDetailPanel) then
-        return "objectives/description (accept dialogue)", q and {
-            { label = "objectives", text = PF.Expand(q[OBJECTIVES]) },
-            { label = "description", text = PF.Expand(q[DESCRIPTION]) },
-        }
-    end
-    return "title", q and PF.Expand(q[TITLE])
+-- Which panel/part was on screen, so the pre-filled issue title says e.g. "quest 366 (progress)"
+-- instead of just the bare ID -- PF.ReportBug no longer takes or needs the actual field text (see
+-- its own comment: that belongs in the reporter's own eyes + the repo's issue template, not
+-- URL-encoded in-game text).
+local function currentQuestPart()
+    if shown(QuestFrameRewardPanel) then return "rewards/completion" end
+    if shown(QuestFrameProgressPanel) then return "progress (in-progress dialogue)" end
+    if shown(QuestFrameDetailPanel) then return "objectives/description (accept dialogue)" end
+    return "title"
 end
 
 local function reportCurrentQuest()
     local id = CurrentQuestID()
-    local q = id and PF.Quests and PF.Quests[id]
-    local part, current = currentQuestPart(q)
-    PF.ReportBug("quest", id, current, part)
+    PF.ReportBug("quest", id, nil, currentQuestPart())
 end
 
 -- Small PL/EN preview + Report buttons on whichever quest frame is actually shown.

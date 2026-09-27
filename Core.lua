@@ -395,7 +395,8 @@ local function urlEncode(s)
 end
 
 StaticPopupDialogs["POLISHFOREVER_REPORT"] = {
-    text = "Copy this link (Ctrl+C) and open it in your browser to file the report:",
+    text = "Copy this link (Ctrl+C) and open it in your browser to file the report. " ..
+        "The current text/details are printed in chat above -- paste them into the issue yourself.",
     button1 = CLOSE,
     hasEditBox = true,
     editBoxWidth = 350,
@@ -418,41 +419,20 @@ StaticPopupDialogs["POLISHFOREVER_REPORT"] = {
     preferredIndex = 3,
 }
 
--- kind: "quest" / "gossip" / "item" / "spell" / ... ; id: quest ID or other identifier (may be
--- nil) -- always shown on its own line, never buried inside a text dump, so a reader can jump
--- straight to that ID without having to parse which quest a wall of text belongs to; current: the
--- Polish text currently shown -- either a plain string, or a list of {label, text} pairs when more
--- than one field is relevant (e.g. the accept dialogue shows objectives AND description at once;
--- concatenating them into one unlabeled blob left no way to tell them apart, or to tell where one
--- ends and the id/context begins); extra: free-form context -- for quests, which panel/part was
--- open (e.g. "objectives", "rewards"); for gossip, the English source line (which has no stable
--- ID).
+-- kind: "quest" / "gossip" / "item" / "spell" / ... ; id: the quest/item/spell ID (may be nil);
+-- extra: free-form context -- for quests, which panel/part was open (e.g. "objectives",
+-- "rewards"); for gossip, the English source line (no stable ID). `current` is accepted for
+-- callers that still pass it but is intentionally UNUSED here: an in-game field's text
+-- URL-encoded into &body= risks pushing the link past a sane length for anything but the
+-- shortest lines, and can silently fail to open. The actual field layout (Current Polish text /
+-- Suggested Polish text / Why) lives in .github/ISSUE_TEMPLATE/translation.md in the repo, not in
+-- addon code -- the URL only needs to select that template and prefill the short title (which
+-- already carries kind + id + part); the reporter fills in the text themselves once the page
+-- opens, looking at their own screen.
 function PF.ReportBug(kind, id, current, extra)
     local title = ("[translation] %s%s%s"):format(kind, id and (" " .. tostring(id)) or "",
         extra and (" (" .. extra .. ")") or "")
-    local lines = {
-        "**Content type**: " .. tostring(kind),
-        "**ID**: " .. (id and tostring(id) or "(none -- see context below)"),
-    }
-    if extra then lines[#lines + 1] = "**Part/context**: " .. extra end
-    lines[#lines + 1] = ""
-    if type(current) == "table" then
-        for _, field in ipairs(current) do
-            lines[#lines + 1] = "**Current Polish text (" .. field.label .. ")**:"
-            lines[#lines + 1] = field.text or ""
-            lines[#lines + 1] = ""
-        end
-    else
-        lines[#lines + 1] = "**Current Polish text**:"
-        lines[#lines + 1] = current or ""
-        lines[#lines + 1] = ""
-    end
-    for _, l in ipairs({ "**Suggested Polish text**:", "", "", "**Why**:", "" }) do
-        lines[#lines + 1] = l
-    end
-    local body = table.concat(lines, "\n")
-    local url = PF.REPO_URL .. "/issues/new?labels=translation&title=" .. urlEncode(title) ..
-        "&body=" .. urlEncode(body)
+    local url = PF.REPO_URL .. "/issues/new?template=translation.md&title=" .. urlEncode(title)
     StaticPopup_Show("POLISHFOREVER_REPORT", nil, nil, url)
 end
 
