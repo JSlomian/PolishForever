@@ -81,13 +81,19 @@ local function Apply()
         detailScope.ApplyText(QuestInfoTitleHeader, PF.Expand(q[TITLE]), "title")
         detailScope.ApplyText(QuestInfoObjectivesText, PF.Expand(q[OBJECTIVES]), "body")
         detailScope.ApplyText(QuestInfoDescriptionText, PF.Expand(q[DESCRIPTION]), "body")
-        if QuestInfoObjectivesFrame and QuestInfoObjectivesFrame.GetChildren then
-            for _, obj in ipairs({ QuestInfoObjectivesFrame:GetChildren() }) do
-                local fs = obj.GetText and obj or (obj.Text)
-                local text = fs and fs.GetText and fs:GetText()
-                if text then
-                    local pl = translateObjectiveLine(text) or completionLineText(text)
-                    if pl then detailScope.ApplyText(fs, pl, "body") end
+        -- QuestInfoObjective1/2/... (confirmed via /pl dump) are FontString *regions* of
+        -- QuestInfoObjectivesFrame, not child frames -- GetChildren() returns none of them
+        -- (that's why this silently did nothing before), GetRegions() is what actually holds
+        -- them, same distinction Debug.lua's walk() already makes.
+        if QuestInfoObjectivesFrame and QuestInfoObjectivesFrame.GetRegions then
+            for _, region in ipairs({ QuestInfoObjectivesFrame:GetRegions() }) do
+                local okType, regionType = pcall(region.GetObjectType, region)
+                if okType and regionType == "FontString" then
+                    local text = region.GetText and region:GetText()
+                    if text then
+                        local pl = translateObjectiveLine(text) or completionLineText(text)
+                        if pl then detailScope.ApplyText(region, pl, "body") end
+                    end
                 end
             end
         end
@@ -117,11 +123,16 @@ local function installControls()
     if controlsInstalled then return end
     controlsInstalled = true
     if QuestMapDetailsScrollFrame then
-        -- Positive Y here extends *above* the scrollframe's own top edge, into the gap between
-        -- it and "Back" -- confirmed safe (plain frames don't clip non-scroll-child siblings,
-        -- only the designated ScrollChild content is clipped) and clears the title text that a
-        -- small negative offset collided with.
-        pcall(detailScope.CreateControls, QuestMapDetailsScrollFrame, "TOPRIGHT", -6, 16, reportCurrentQuest)
+        -- PL/EN toggle: pinned to the parchment's own top-right corner (small negative
+        -- offset -- inside the paper, below its edge, not floating above it in the dark
+        -- window chrome the way a positive Y offset did).
+        -- Report: anchored directly to Blizzard's own "Back" button (found at runtime, not a
+        -- guessed pixel offset -- see PF.FindButtonByText) so it sits in the same row as Back
+        -- regardless of how this panel's layout shifts between contexts.
+        local back = PF.FindButtonByText(WorldMapFrame, "Back", 12)
+        local reportAnchor = back and { back, "LEFT", "RIGHT", 8, 0 }
+        pcall(detailScope.CreateControls, QuestMapDetailsScrollFrame, "TOPRIGHT", -8, -6,
+            reportCurrentQuest, reportAnchor)
     end
     if QuestInfoFrame then
         pcall(detailScope.CreateControls, QuestInfoFrame, "BOTTOMRIGHT", -8, 8, reportCurrentQuest)
@@ -282,10 +293,18 @@ local function ApplyQuestMapList()
         for line in sf.objectiveFramePool:EnumerateActive() do
             if line.Text then
                 local text = line.Text:GetText()
+                local id = line.questID
+                local q = id and PF.Quests and PF.Quests[id]
                 -- translateObjectiveLine handles "N/M name" bullets; completionLineText covers
                 -- the "Ready for turn-in"/completion bullet shown once a quest's objectives are
                 -- all done (same generic-string gap as the tracker's QuestComplete branch above).
+                -- Neither matches a plain narrative single-objective quest (e.g. "Take
+                -- Apothecary Johaan's findings to Apothecary Renferrel...") -- this widget only
+                -- ever shows one of these three things, so once the first two have ruled
+                -- themselves out, q[OBJECTIVES] (the same short summary sentence used in the
+                -- detail view) is the remaining possibility, not an open-ended guess.
                 local pl = translateObjectiveLine(text) or completionLineText(text)
+                    or (q and q[OBJECTIVES] ~= "" and PF.Expand(q[OBJECTIVES]))
                 if pl then
                     listScope.ApplyText(line.Text, pl, "body")
                     changed = true

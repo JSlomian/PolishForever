@@ -235,6 +235,30 @@ function PF.SetText(fs, text, kind)
     return true
 end
 
+-- Recursively search a frame tree for a Button whose GetText() equals `label` -- lets us anchor
+-- our own controls to one of Blizzard's own buttons (e.g. "Back") instead of a pixel offset
+-- guessed off some other frame's corner, which breaks the moment that frame's layout shifts.
+-- Depth-capped and pcall-wrapped throughout (secret-value protection, same as PF.Hash).
+function PF.FindButtonByText(root, label, maxDepth)
+    maxDepth = maxDepth or 8
+    local function walk(obj, depth)
+        if depth > maxDepth or not (obj and obj.GetChildren) then return nil end
+        local ok, children = pcall(function() return { obj:GetChildren() } end)
+        if not ok then return nil end
+        for _, child in ipairs(children) do
+            local okType, childType = pcall(child.GetObjectType, child)
+            if okType and childType == "Button" then
+                local okText, text = pcall(child.GetText, child)
+                if okText and text == label then return child end
+            end
+            local found = walk(child, depth + 1)
+            if found then return found end
+        end
+    end
+    local ok, result = pcall(walk, root, 0)
+    return ok and result or nil
+end
+
 -- EN/PL preview toggle ------------------------------------------------------------------------
 -- Session-only (never saved to PolishForeverDB): lets a player flip a currently-open window
 -- back to the original English to compare/verify a translation, without it being a persistent
@@ -288,7 +312,10 @@ function PF.NewPreviewScope()
 
     -- A small "PL/EN" button plus an optional "Report" button, anchored to `parent` at `point`
     -- offset by (x, y). `reportFn`, if given, is the report button's OnClick handler.
-    function scope.CreateControls(parent, point, x, y, reportFn)
+    -- `reportAnchor`, if given, is {frame, point, relativePoint, x, y} -- anchors Report to that
+    -- frame instead of relative to the toggle (see PF.FindButtonByText: used to line Report up
+    -- with Blizzard's own "Back" button rather than a guessed pixel offset).
+    function scope.CreateControls(parent, point, x, y, reportFn, reportAnchor)
         if not parent then return end
         local toggle = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
         toggle:SetSize(36, 20)
@@ -301,11 +328,15 @@ function PF.NewPreviewScope()
         if reportFn then
             local report = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
             report:SetSize(56, 20)
-            -- Grows inward (left of the toggle), not outward past the parent's right edge --
-            -- anchoring it to toggle's RIGHT side pushed it past the frame's own boundary and
-            -- got it clipped by whatever sits beyond (scrollbar/border), since `toggle` itself
-            -- already sits right at that edge.
-            report:SetPoint("RIGHT", toggle, "LEFT", -4, 0)
+            if reportAnchor then
+                report:SetPoint(reportAnchor[2], reportAnchor[1], reportAnchor[3], reportAnchor[4], reportAnchor[5])
+            else
+                -- Grows inward (left of the toggle), not outward past the parent's right edge --
+                -- anchoring it to toggle's RIGHT side pushed it past the frame's own boundary and
+                -- got it clipped by whatever sits beyond (scrollbar/border), since `toggle` itself
+                -- already sits right at that edge.
+                report:SetPoint("RIGHT", toggle, "LEFT", -4, 0)
+            end
             report:SetText("Report")
             report:SetScript("OnClick", reportFn)
             report:SetScript("OnEnter", function(self)
