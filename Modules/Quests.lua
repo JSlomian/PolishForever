@@ -17,11 +17,17 @@ end
 -- "^(%[...)" pattern only matched a bare bracket at the very start, so it silently failed
 -- (empty prefix) whenever a color code came first, dropping both the color and the level
 -- number from the translated line. Capture an optional leading color code too.
+-- Wrapped in pcall like PF.Hash: some tooltip/UI text is a WoW "secret value" (protected/opaque
+-- string) that throws on any string operation, even from an addon that never touches its
+-- content maliciously. Titles are unlikely to be secret, but cheap to guard the same way.
 local function titlePrefix(text)
-    if not text then return "" end
-    local color = text:match("^(|c%x%x%x%x%x%x%x%x)") or ""
-    local bracket = text:sub(#color + 1):match("^(%[[^%]]*%]%s*)") or ""
-    return color .. bracket
+    local ok, result = pcall(function()
+        if not text then return "" end
+        local color = text:match("^(|c%x%x%x%x%x%x%x%x)") or ""
+        local bracket = text:sub(#color + 1):match("^(%[[^%]]*%]%s*)") or ""
+        return color .. bracket
+    end)
+    return ok and result or ""
 end
 
 -- The quest currently on screen: the selected quest-log entry, or the NPC dialogue quest.
@@ -131,22 +137,26 @@ end
 -- and rebuild the line. Same hash-mismatch-is-safe principle as tooltips: a name we don't have a
 -- translation for just leaves the line as-is.
 local OBJ_SUFFIXES = { " slain", " killed", " collected", " looted", " used", " completed" }
+-- Wrapped in pcall (see titlePrefix above): guards against "secret value" protected strings.
 local function translateObjectiveLine(text)
-    if not text then return nil end
-    local counter, rest = text:match("^(%d+/%d+%s+)(.*)$")
-    if not counter then return nil end
-    local suffix = ""
-    for _, s in ipairs(OBJ_SUFFIXES) do
-        if rest:sub(-#s) == s then
-            suffix = s
-            rest = rest:sub(1, -#s - 1)
-            break
+    local ok, result = pcall(function()
+        if not text then return nil end
+        local counter, rest = text:match("^(%d+/%d+%s+)(.*)$")
+        if not counter then return nil end
+        local suffix = ""
+        for _, s in ipairs(OBJ_SUFFIXES) do
+            if rest:sub(-#s) == s then
+                suffix = s
+                rest = rest:sub(1, -#s - 1)
+                break
+            end
         end
-    end
-    local text2 = PF.Text
-    local pl = (text2 and text2.Items and text2.Items[PF.Hash(rest)])
-        or (text2 and text2.Creatures and text2.Creatures[PF.Hash(rest)])
-    if pl then return counter .. pl .. suffix end
+        local text2 = PF.Text
+        local pl = (text2 and text2.Items and text2.Items[PF.Hash(rest)])
+            or (text2 and text2.Creatures and text2.Creatures[PF.Hash(rest)])
+        if pl then return counter .. pl .. suffix end
+    end)
+    return ok and result or nil
 end
 
 local applyingTracker = false

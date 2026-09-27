@@ -32,18 +32,25 @@ local function Clean(text)
     return text
 end
 
+-- Wrapped in pcall (same reasoning as PF.Hash in Core.lua): some UI text is now a WoW "secret
+-- value" (protected/opaque string) that throws on any string operation. Unlikely for plain NPC
+-- gossip text, but cheap insurance against a translation-disabling error the moment Blizzard
+-- extends that protection further.
 local function Lookup(english)
-    if not english or english == "" or english:sub(-2) == PF.NBSP then return end
-    local gossip = PF.Gossip
-    if not gossip then return end
-    local clean = Clean(english)
-    local pl = gossip[PF.Hash(clean)]
-    if not pl then
-        -- quest titles in the option list may carry a " (low level)" suffix
-        local trimmed = clean:gsub(" %(low level%)", "")
-        if trimmed ~= clean then pl = gossip[PF.Hash(trimmed)] end
-    end
-    return pl
+    local ok, result = pcall(function()
+        if not english or english == "" or english:sub(-2) == PF.NBSP then return end
+        local gossip = PF.Gossip
+        if not gossip then return end
+        local clean = Clean(english)
+        local pl = gossip[PF.Hash(clean)]
+        if not pl then
+            -- quest titles in the option list may carry a " (low level)" suffix
+            local trimmed = clean:gsub(" %(low level%)", "")
+            if trimmed ~= clean then pl = gossip[PF.Hash(trimmed)] end
+        end
+        return pl
+    end)
+    return ok and result or nil
 end
 
 -- Last thing translated, for the Report button's context (gossip has no stable ID to key a
@@ -60,13 +67,18 @@ local function Translate(fs, english, kind)
 end
 
 -- Option buttons hold coloured text like "|cff0000ffTitle|r"; hash only the plain text.
+-- Wrapped in pcall like Lookup above (secret-value protection).
 local function ApplyOption(button)
     local text = button.GetText and button:GetText()
     if not text or text == "" then return end
-    local prefix = text:match("^(|c%x%x%x%x%x%x%x%x)") or ""
-    local suffix = prefix ~= "" and "|r" or ""
-    local plain = text:gsub("^|c%x%x%x%x%x%x%x%x", "")
-    plain = plain:gsub("|r$", "")
+    local ok, prefix, suffix, plain = pcall(function()
+        local p = text:match("^(|c%x%x%x%x%x%x%x%x)") or ""
+        local s = p ~= "" and "|r" or ""
+        local t = text:gsub("^|c%x%x%x%x%x%x%x%x", "")
+        t = t:gsub("|r$", "")
+        return p, s, t
+    end)
+    if not ok then return end
     local pl = Lookup(plain)
     if pl and button.GetFontString then
         local fs = button:GetFontString()

@@ -66,17 +66,25 @@ end
 
 -- WoWpoPolsku's gossip key scheme: 32-bit hash of the English text. Kept byte-for-byte so its
 -- Gossip_PL.lua keys match.
+-- Wrapped in pcall: some tooltip text is a "secret value" (a protected/opaque string WoW's
+-- newer anti-exploit system returns instead of a plain string for certain content) -- any string
+-- op on it, even `#text`, throws "attempt to get length of ... a secret string value". Since
+-- we can't hash it anyway, just treat it as unmatchable (hash 0, same as an empty string) rather
+-- than letting the error propagate and abort whatever loop called us.
 function PF.Hash(text)
-    if not text or #text == 0 then return 0 end
-    local counter = 1
-    local len = #text
-    for i = 1, len, 3 do
-        counter = math.fmod(counter * 8161, 4294967279)
-        counter = counter + string.byte(text, i) * 16776193
-        counter = counter + (string.byte(text, i + 1) or (len - i + 256)) * 8372226
-        counter = counter + (string.byte(text, i + 2) or (len - i + 256)) * 3932164
-    end
-    return math.fmod(counter, 4294967291)
+    local ok, result = pcall(function()
+        if not text or #text == 0 then return 0 end
+        local counter = 1
+        local len = #text
+        for i = 1, len, 3 do
+            counter = math.fmod(counter * 8161, 4294967279)
+            counter = counter + string.byte(text, i) * 16776193
+            counter = counter + (string.byte(text, i + 1) or (len - i + 256)) * 8372226
+            counter = counter + (string.byte(text, i + 2) or (len - i + 256)) * 3932164
+        end
+        return math.fmod(counter, 4294967291)
+    end)
+    return ok and result or 0
 end
 
 local CASES = { "M", "D", "C", "B", "N", "K", "W" }
