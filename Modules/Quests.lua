@@ -371,8 +371,14 @@ local function translateQuestTooltip(tt)
             if i == 1 then
                 pl = titlePrefix(text) .. PF.Expand(q[TITLE])
             else
+                -- Deliberately NOT falling back to q[OBJECTIVES] here like the list's own
+                -- bullet widget does: that widget only ever shows one of three things (a closed
+                -- enumeration), but this tooltip has many unrelated lines (level requirement, a
+                -- blank separator, an "Objectives:" header, rewards, ...) -- blindly substituting
+                -- every non-matching line with the objectives sentence overwrote all of them
+                -- with the same text instead of leaving them alone. Only apply a verified
+                -- hash-match; anything else stays English.
                 pl = translateObjectiveLine(text) or completionLineText(text)
-                    or (q[OBJECTIVES] ~= "" and PF.Expand(q[OBJECTIVES]))
             end
             if pl and pl ~= text then PF.SetText(fs, pl, i == 1 and "title" or "body") end
         end
