@@ -134,16 +134,31 @@ local function installControls()
         pcall(detailScope.CreateControls, QuestMapDetailsScrollFrame, "TOPRIGHT", -8, -6,
             reportCurrentQuest, reportAnchor)
     end
-    -- PL/EN pinned to the parchment's own top-right corner, Report stacked directly above it
-    -- (not to the side -- the NPC dialogue's parchment is narrower than the map panel's, so a
-    -- side-by-side Report ran into the scrollbar; confirmed via screenshot).
+    -- PL/EN pinned to the parchment's own top-right corner, at the same height as the quest
+    -- title, Report stacked directly above it (not to the side -- this parchment is narrower
+    -- than the map panel's, so a side-by-side Report ran into the scrollbar; confirmed via
+    -- screenshot). QuestInfoFrame/QuestFrameProgressPanel's own TOPRIGHT is NOT the parchment's
+    -- top -- it's the whole dialogue's frame rect, which extends up behind the title bar/NPC
+    -- portrait (confirmed via screenshot: the buttons floated above the "X" close button
+    -- entirely). Anchor vertically to the title FontString instead (known to sit right at the
+    -- parchment's actual top edge) and horizontally to the frame's own right edge (that part was
+    -- already correct) -- CreateControls returns the toggle frame so a second, combining SetPoint
+    -- can be layered on top of its initial one; Report's own anchor (relative to the toggle
+    -- frame, not a baked coordinate) follows automatically.
+    local function pinToTitle(parent, titleText)
+        local ok, toggle = pcall(detailScope.CreateControls, parent, "TOPRIGHT", -8, -6,
+            reportCurrentQuest, nil, nil, "above")
+        if ok and toggle and titleText then
+            toggle:ClearAllPoints()
+            toggle:SetPoint("TOP", titleText, "TOP", 0, 0)
+            toggle:SetPoint("RIGHT", parent, "RIGHT", -8, 0)
+        end
+    end
     if QuestInfoFrame then
-        pcall(detailScope.CreateControls, QuestInfoFrame, "TOPRIGHT", -8, -6, reportCurrentQuest,
-            nil, nil, "above")
+        pinToTitle(QuestInfoFrame, QuestInfoTitleHeader)
     end
     if QuestFrameProgressPanel then
-        pcall(detailScope.CreateControls, QuestFrameProgressPanel, "TOPRIGHT", -8, -6, reportCurrentQuest,
-            nil, nil, "above")
+        pinToTitle(QuestFrameProgressPanel, QuestProgressTitleText)
     end
 end
 
