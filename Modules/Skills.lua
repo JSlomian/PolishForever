@@ -7,7 +7,8 @@ local Skills = {
 
 -- Two halves, since professions are spells but skill/recipe LISTS are plain FontStrings:
 -- 1) Profession/skill tooltips (casting a profession, hovering a skill icon) are spells under
---    the hood, so they render via the same GameTooltip:OnTooltipSetSpell path as Abilities.
+--    the hood, so they render via the same setter-hooking path as Abilities (see
+--    PF.HookTooltipSetters/PF.HookTooltipPostCalls in Core.lua).
 -- 2) The skills list (character pane) and the trade-skill/recipe list show names as plain
 --    text rows, not tooltips. The two supported client versions (.toc: 16001 Cata Classic,
 --    11509 Classic Era) use different frames for this (ProfessionsFrame vs. TradeSkillFrame),
@@ -25,11 +26,11 @@ function Skills:OnEnable()
     if hooked then return end
     hooked = true
 
-    if GameTooltip and GameTooltip.HookScript then
-        GameTooltip:HookScript("OnTooltipSetSpell", function(self)
-            if PF:IsEnabled("Skills") then PF.TranslateTooltipLines(self, PF.Text.Skills) end
-        end)
+    local handler = function(self)
+        if PF:IsEnabled("Skills") then PF.TranslateTooltipLines(self, PF.Text.Skills) end
     end
+    if GameTooltip then PF.HookTooltipSetters(GameTooltip, { "SetSpell", "SetSpellByID" }, handler) end
+    PF.HookTooltipPostCalls({ "Spell" }, handler)
 
     local function refresh()
         if not PF:IsEnabled("Skills") then return end

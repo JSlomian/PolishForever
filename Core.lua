@@ -139,6 +139,38 @@ function PF.TranslateTooltipLines(tooltip, table)
     end
 end
 
+-- Hook a tooltip's actual SetXxx setter methods (SetHyperlink, SetSpellByID, ...) rather than
+-- the virtual OnTooltipSetItem/OnTooltipSetSpell script -- confirmed by a runtime error
+-- ("bad argument #2 to HookScript") that this client's GameTooltip doesn't accept those as
+-- valid script types. Root cause unconfirmed (could be a client predating that API, or a newer
+-- retail-based client that removed it in favor of TooltipDataProcessor -- see
+-- PF.HookTooltipPostCalls below); hooksecurefunc on the setter methods themselves is the older
+-- technique that's worked across every client era, so it's the safe universal fallback either
+-- way. `handler` runs after the real method has populated the tooltip's lines.
+function PF.HookTooltipSetters(tooltip, methodNames, handler)
+    if not tooltip then return end
+    for _, m in ipairs(methodNames) do
+        if type(tooltip[m]) == "function" then
+            hooksecurefunc(tooltip, m, handler)
+        end
+    end
+end
+
+-- Modern (post-Dragonflight-era retail) tooltips process content through TooltipDataProcessor
+-- rather than the old OnTooltipSetItem/OnTooltipSetSpell scripts; if this client has it, hook it
+-- too, alongside PF.HookTooltipSetters -- harmless to have both active since PF.SetText is a
+-- no-op when the text already matches, and a hash-mismatch always leaves text untouched.
+-- dataTypeNames are Enum.TooltipDataType keys, e.g. "Item", "Spell".
+function PF.HookTooltipPostCalls(dataTypeNames, handler)
+    local proc = _G.TooltipDataProcessor
+    local enum = _G.Enum and _G.Enum.TooltipDataType
+    if not (proc and proc.AddTooltipPostCall and enum) then return false end
+    for _, name in ipairs(dataTypeNames) do
+        if enum[name] then proc.AddTooltipPostCall(enum[name], handler) end
+    end
+    return true
+end
+
 -- Recursively walk a frame's regions/children translating any FontString whose current text
 -- hash-matches `table` (a PF.Text.<Group> table). For UI panels (skill/recipe lists, ...) that
 -- show plain labels rather than tooltips, where the exact button/sub-frame naming can differ
