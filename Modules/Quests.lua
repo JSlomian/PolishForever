@@ -143,10 +143,13 @@ end
 -- instead of just the bare ID -- PF.ReportBug no longer takes or needs the actual field text (see
 -- its own comment: that belongs in the reporter's own eyes + the repo's issue template, not
 -- URL-encoded in-game text).
+-- Plain labels, no embedded parens -- PF.ReportBug already wraps `extra` in its own "(...)" for
+-- the title, so a value like "progress (in-progress dialogue)" produced a double-nested
+-- "(progress (in-progress dialogue))" (confirmed via the actual generated URL/title).
 local function currentQuestPart()
-    if shown(QuestFrameRewardPanel) then return "rewards/completion" end
-    if shown(QuestFrameProgressPanel) then return "progress (in-progress dialogue)" end
-    if shown(QuestFrameDetailPanel) then return "objectives/description (accept dialogue)" end
+    if shown(QuestFrameRewardPanel) then return "rewards" end
+    if shown(QuestFrameProgressPanel) then return "progress" end
+    if shown(QuestFrameDetailPanel) then return "accept dialogue" end
     return "title"
 end
 
