@@ -53,6 +53,10 @@ local function Lookup(english)
     return ok and result or nil
 end
 
+-- Own preview scope (see PF.NewPreviewScope in Core.lua) so toggling gossip's PL/EN button
+-- doesn't affect any other open window (quest log, tracker, ...).
+local previewScope = PF.NewPreviewScope()
+
 -- Last thing translated, for the Report button's context (gossip has no stable ID to key a
 -- bug report on, unlike quests -- the English source line is the best we can offer).
 local lastEnglish, lastPolish
@@ -61,7 +65,7 @@ local function Translate(fs, english, kind)
     local pl = Lookup(english)
     if pl then
         local text = PF.Expand(pl) .. PF.NBSP
-        PF.ApplyText(fs, text, kind)
+        previewScope.ApplyText(fs, text, kind)
         lastEnglish, lastPolish = english, text
     end
 end
@@ -84,7 +88,7 @@ local function ApplyOption(button)
         local fs = button:GetFontString()
         if fs then
             local out = prefix .. PF.Expand(pl) .. PF.NBSP .. suffix
-            PF.ApplyText(fs, out, "body")
+            previewScope.ApplyText(fs, out, "body")
             lastEnglish, lastPolish = plain, out
         end
     end
@@ -99,7 +103,7 @@ local function installControls()
     if controlsInstalled then return end
     controlsInstalled = true
     if GossipFrame then
-        pcall(PF.CreatePreviewControls, GossipFrame, "BOTTOMRIGHT", -8, 8, reportGossip)
+        pcall(previewScope.CreateControls, GossipFrame, "BOTTOMRIGHT", -8, 8, reportGossip)
     end
 end
 

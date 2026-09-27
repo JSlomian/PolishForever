@@ -237,79 +237,83 @@ end
 -- EN/PL preview toggle ------------------------------------------------------------------------
 -- Session-only (never saved to PolishForeverDB): lets a player flip a currently-open window
 -- back to the original English to compare/verify a translation, without it being a persistent
--- setting. PF.ApplyText wraps every PF.SetText call site in Quests/Gossip so both the original
--- and translated text are cached on the widget the first time it's touched, and toggling the
--- flag just re-applies whichever one is wanted -- no need to re-run Blizzard's own display logic.
-PF.previewEnglish = false
-local activeTexts = setmetatable({}, { __mode = "k" })
-local previewWatchers = setmetatable({}, { __mode = "k" })
-
+-- setting. Each *scope* (one per distinct UI surface -- the quest detail view, the tracker, the
+-- quest-map list, gossip, ...) has its own independent flag/widget-registry, so toggling one
+-- window doesn't affect any other currently-open window; call PF.NewPreviewScope() once per
+-- surface and use that scope's own ApplyText/CreateControls, not a single shared global.
 local function showOriginal(fs)
     if fs.pfFont then fs:SetFont(fs.pfFont[1], fs.pfFont[2] or 12, fs.pfFont[3]) end
     fs:SetText(fs.pfOriginal or "")
 end
 
--- Use this (not PF.SetText) at every "we're about to show a translation" call site that should
--- respect the preview toggle.
-function PF.ApplyText(fs, polish, kind)
-    if not fs then return end
-    if fs.pfOriginal == nil then fs.pfOriginal = fs:GetText() or "" end
-    if polish and polish ~= "" then
-        fs.pfPolish = polish
-        fs.pfKind = kind
-    end
-    activeTexts[fs] = true
-    if PF.previewEnglish then
-        showOriginal(fs)
-    elseif fs.pfPolish and fs.pfPolish ~= "" then
-        PF.SetText(fs, fs.pfPolish, fs.pfKind)
-    end
-end
+function PF.NewPreviewScope()
+    local scope = { previewEnglish = false }
+    local activeTexts = setmetatable({}, { __mode = "k" })
+    local watchers = setmetatable({}, { __mode = "k" })
 
-function PF.SetPreviewEnglish(on)
-    PF.previewEnglish = on and true or false
-    for fs in pairs(activeTexts) do
-        if fs and fs.GetObjectType and pcall(fs.GetObjectType, fs) then
-            if PF.previewEnglish then
-                showOriginal(fs)
-            elseif fs.pfPolish and fs.pfPolish ~= "" then
-                PF.SetText(fs, fs.pfPolish, fs.pfKind)
-            end
+    -- Use this (not PF.SetText) at every "we're about to show a translation" call site in this
+    -- scope's UI surface.
+    function scope.ApplyText(fs, polish, kind)
+        if not fs then return end
+        if fs.pfOriginal == nil then fs.pfOriginal = fs:GetText() or "" end
+        if polish and polish ~= "" then
+            fs.pfPolish = polish
+            fs.pfKind = kind
+        end
+        activeTexts[fs] = true
+        if scope.previewEnglish then
+            showOriginal(fs)
+        elseif fs.pfPolish and fs.pfPolish ~= "" then
+            PF.SetText(fs, fs.pfPolish, fs.pfKind)
         end
     end
-    for watcher in pairs(previewWatchers) do
-        local ok = pcall(watcher)
-        if not ok then previewWatchers[watcher] = nil end
-    end
-end
 
--- A small "PL/EN" button plus an optional "Report" button, anchored to `parent` at `point`
--- offset by (x, y). `reportFn`, if given, is the report button's OnClick handler. Returns the
--- toggle button (its label auto-updates whenever PF.SetPreviewEnglish is called from anywhere).
-function PF.CreatePreviewControls(parent, point, x, y, reportFn)
-    if not parent then return end
-    local toggle = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-    toggle:SetSize(36, 20)
-    toggle:SetPoint(point, parent, point, x, y)
-    local function updateLabel() toggle:SetText(PF.previewEnglish and "EN" or "PL") end
-    updateLabel()
-    previewWatchers[updateLabel] = true
-    toggle:SetScript("OnClick", function() PF.SetPreviewEnglish(not PF.previewEnglish) end)
-
-    if reportFn then
-        local report = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-        report:SetSize(56, 20)
-        report:SetPoint("LEFT", toggle, "RIGHT", 4, 0)
-        report:SetText("Report")
-        report:SetScript("OnClick", reportFn)
-        report:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_TOP")
-            GameTooltip:SetText("Report a translation issue")
-            GameTooltip:Show()
-        end)
-        report:SetScript("OnLeave", GameTooltip_Hide)
+    function scope.SetPreviewEnglish(on)
+        scope.previewEnglish = on and true or false
+        for fs in pairs(activeTexts) do
+            if fs and fs.GetObjectType and pcall(fs.GetObjectType, fs) then
+                if scope.previewEnglish then
+                    showOriginal(fs)
+                elseif fs.pfPolish and fs.pfPolish ~= "" then
+                    PF.SetText(fs, fs.pfPolish, fs.pfKind)
+                end
+            end
+        end
+        for watcher in pairs(watchers) do
+            local ok = pcall(watcher)
+            if not ok then watchers[watcher] = nil end
+        end
     end
-    return toggle
+
+    -- A small "PL/EN" button plus an optional "Report" button, anchored to `parent` at `point`
+    -- offset by (x, y). `reportFn`, if given, is the report button's OnClick handler.
+    function scope.CreateControls(parent, point, x, y, reportFn)
+        if not parent then return end
+        local toggle = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+        toggle:SetSize(36, 20)
+        toggle:SetPoint(point, parent, point, x, y)
+        local function updateLabel() toggle:SetText(scope.previewEnglish and "EN" or "PL") end
+        updateLabel()
+        watchers[updateLabel] = true
+        toggle:SetScript("OnClick", function() scope.SetPreviewEnglish(not scope.previewEnglish) end)
+
+        if reportFn then
+            local report = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+            report:SetSize(56, 20)
+            report:SetPoint("LEFT", toggle, "RIGHT", 4, 0)
+            report:SetText("Report")
+            report:SetScript("OnClick", reportFn)
+            report:SetScript("OnEnter", function(self)
+                GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                GameTooltip:SetText("Report a translation issue")
+                GameTooltip:Show()
+            end)
+            report:SetScript("OnLeave", GameTooltip_Hide)
+        end
+        return toggle
+    end
+
+    return scope
 end
 
 -- Bug reports -----------------------------------------------------------------------------------

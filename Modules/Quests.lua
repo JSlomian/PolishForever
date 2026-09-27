@@ -53,6 +53,13 @@ local function refreshScroll()
     end
 end
 
+-- Separate preview scopes per distinct UI surface, so toggling one window's PL/EN button
+-- doesn't affect any other currently-open window (tracker, quest-map list, the detail view are
+-- all independent -- see PF.NewPreviewScope in Core.lua).
+local detailScope = PF.NewPreviewScope()
+local trackerScope = PF.NewPreviewScope()
+local listScope = PF.NewPreviewScope()
+
 local function Apply()
     if not PF:IsEnabled("Quests") then return end
     local id = CurrentQuestID()
@@ -60,14 +67,14 @@ local function Apply()
     if not q then return end
 
     if shown(QuestFrameProgressPanel) then
-        PF.ApplyText(QuestProgressTitleText, PF.Expand(q[TITLE]), "title")
-        PF.ApplyText(QuestProgressText, PF.Expand(q[PROGRESS]), "body")
+        detailScope.ApplyText(QuestProgressTitleText, PF.Expand(q[TITLE]), "title")
+        detailScope.ApplyText(QuestProgressText, PF.Expand(q[PROGRESS]), "body")
     else
-        PF.ApplyText(QuestInfoTitleHeader, PF.Expand(q[TITLE]), "title")
-        PF.ApplyText(QuestInfoObjectivesText, PF.Expand(q[OBJECTIVES]), "body")
-        PF.ApplyText(QuestInfoDescriptionText, PF.Expand(q[DESCRIPTION]), "body")
+        detailScope.ApplyText(QuestInfoTitleHeader, PF.Expand(q[TITLE]), "title")
+        detailScope.ApplyText(QuestInfoObjectivesText, PF.Expand(q[OBJECTIVES]), "body")
+        detailScope.ApplyText(QuestInfoDescriptionText, PF.Expand(q[DESCRIPTION]), "body")
         if shown(QuestFrameRewardPanel) then
-            PF.ApplyText(QuestInfoRewardText, PF.Expand(q[COMPLETION]), "body")
+            detailScope.ApplyText(QuestInfoRewardText, PF.Expand(q[COMPLETION]), "body")
         end
     end
     refreshScroll()
@@ -92,13 +99,17 @@ local function installControls()
     if controlsInstalled then return end
     controlsInstalled = true
     if QuestMapDetailsScrollFrame then
-        pcall(PF.CreatePreviewControls, QuestMapDetailsScrollFrame, "TOPRIGHT", -6, -6, reportCurrentQuest)
+        -- Positive Y here extends *above* the scrollframe's own top edge, into the gap between
+        -- it and "Back" -- confirmed safe (plain frames don't clip non-scroll-child siblings,
+        -- only the designated ScrollChild content is clipped) and clears the title text that a
+        -- small negative offset collided with.
+        pcall(detailScope.CreateControls, QuestMapDetailsScrollFrame, "TOPRIGHT", -6, 16, reportCurrentQuest)
     end
     if QuestInfoFrame then
-        pcall(PF.CreatePreviewControls, QuestInfoFrame, "BOTTOMRIGHT", -8, 8, reportCurrentQuest)
+        pcall(detailScope.CreateControls, QuestInfoFrame, "BOTTOMRIGHT", -8, 8, reportCurrentQuest)
     end
     if QuestFrameProgressPanel then
-        pcall(PF.CreatePreviewControls, QuestFrameProgressPanel, "BOTTOMRIGHT", -8, 8, reportCurrentQuest)
+        pcall(detailScope.CreateControls, QuestFrameProgressPanel, "BOTTOMRIGHT", -8, 8, reportCurrentQuest)
     end
 end
 
@@ -111,21 +122,33 @@ end
 -- block gets anchored) from the English text *before* our hook ever runs -- EndLayout stacks
 -- blocks using that already-frozen `block.height`. Polish text is often longer and wraps onto
 -- more lines, so swapping the text afterward without correcting `block.height` leaves later
--- blocks/lines anchored too high and overlapping (this is what the screenshot in the report
--- showed). We fix it by measuring the wrapped-text height before/after each SetText and folding
--- the delta into the block's height so the tracker's own layout math stacks everything correctly.
+-- blocks/lines anchored too high and overlapping.
+--
+-- GetStringHeight() can return stale (pre-SetText) metrics when queried in the very same
+-- execution frame as the SetFont+SetText call, especially right after a font swap -- measuring
+-- the "after" height immediately sometimes computed a wrong (usually zero) delta, under-sizing
+-- the block and letting translated text overflow into the next one (the exact bug reported).
+-- Defer the "after" measurement and the resulting resize/relayout by one frame via
+-- C_Timer.After(0, ...) so the metrics have settled first.
+local applyingTracker = false
 local function setIfChanged(fs, text, kind, block)
-    if fs and text and text ~= "" and fs:GetText() ~= text then
-        local before = fs.GetStringHeight and fs:GetStringHeight() or 0
-        PF.ApplyText(fs, text, kind)
-        local after = fs.GetStringHeight and fs:GetStringHeight() or 0
-        local delta = after - before
-        if delta ~= 0 and block and type(block.height) == "number" then
-            block.height = block.height + delta
+    if not (fs and text and text ~= "" and fs:GetText() ~= text) then return end
+    local before = fs.GetStringHeight and fs:GetStringHeight() or 0
+    trackerScope.ApplyText(fs, text, kind)
+    if not (block and type(block.height) == "number") then return end
+    C_Timer.After(0, function()
+        if not (fs and fs.GetStringHeight) then return end
+        local delta = fs:GetStringHeight() - before
+        if delta == 0 then return end
+        block.height = block.height + delta
+        if block.SetHeight then block:SetHeight(block.height) end
+        local tracker = QuestObjectiveTracker
+        if tracker and type(tracker.EndLayout) == "function" then
+            applyingTracker = true
+            tracker:EndLayout()
+            applyingTracker = false
         end
-        return delta
-    end
-    return 0
+    end)
 end
 
 -- Objective progress lines ("0/8 Bleeding Horror slain", "0/1 Spells of Shadow") are built by
@@ -159,15 +182,12 @@ local function translateObjectiveLine(text)
     return ok and result or nil
 end
 
-local applyingTracker = false
-
 local function ApplyTracker()
     if applyingTracker or not PF:IsEnabled("Quests") then return end
     local tracker = QuestObjectiveTracker
     local contents = tracker and tracker.ContentsFrame
     if not (contents and contents.GetChildren) then return end
     applyingTracker = true
-    local grew = false
     for _, block in ipairs({ contents:GetChildren() }) do
         local id = block.poiQuestID
         local q = id and PF.Quests and PF.Quests[id]
@@ -176,34 +196,21 @@ local function ApplyTracker()
             local current = header and header:GetText()
             if current then
                 local prefix = titlePrefix(current)
-                if setIfChanged(header, prefix .. PF.Expand(q[TITLE]), "title", block) ~= 0 then grew = true end
+                setIfChanged(header, prefix .. PF.Expand(q[TITLE]), "title", block)
             end
             for _, line in ipairs({ block:GetChildren() }) do
                 if line.objectiveKey == "QuestComplete" and line.Text then
-                    if setIfChanged(line.Text, PF.Expand(q[OBJECTIVES]), "body", block) ~= 0 then grew = true end
+                    setIfChanged(line.Text, PF.Expand(q[OBJECTIVES]), "body", block)
                 elseif type(line.objectiveKey) == "number" and line.Text then
                     local pl = translateObjectiveLine(line.Text:GetText())
-                    if pl and setIfChanged(line.Text, pl, "body", block) ~= 0 then grew = true end
+                    if pl then setIfChanged(line.Text, pl, "body", block) end
                 end
-            end
-            if block.SetHeight and type(block.height) == "number" then
-                block:SetHeight(block.height)
             end
         end
     end
     applyingTracker = false
-    -- Re-run the tracker's own stacking pass now that block heights reflect the Polish text;
-    -- setIfChanged above is idempotent (checks GetText() first) so this doesn't loop or re-fetch
-    -- English text -- it just repositions blocks/lines using the corrected heights.
-    if grew then
-        if type(tracker.EndLayout) == "function" then
-            applyingTracker = true
-            tracker:EndLayout()
-            applyingTracker = false
-        elseif type(contents.Layout) == "function" then
-            contents:Layout()
-        end
-    end
+    -- Per-widget height/relayout correction happens inside setIfChanged itself, deferred one
+    -- frame (see comment above it) -- nothing further to do here.
 end
 
 -- Modern "Map & Quest Log" list (the quest titles + inline objective bullets shown in the World
@@ -218,6 +225,7 @@ local function ApplyQuestMapList()
     if not PF:IsEnabled("Quests") then return end
     local sf = QuestMapFrame and QuestMapFrame.QuestsFrame and QuestMapFrame.QuestsFrame.ScrollFrame
     if not sf then return end
+    local changed = false
     if sf.titleFramePool then
         for title in sf.titleFramePool:EnumerateActive() do
             local id = title.questID
@@ -225,7 +233,8 @@ local function ApplyQuestMapList()
             if q and title.Text then
                 local current = title.Text:GetText()
                 local prefix = titlePrefix(current)
-                PF.ApplyText(title.Text, prefix .. PF.Expand(q[TITLE]), "title")
+                listScope.ApplyText(title.Text, prefix .. PF.Expand(q[TITLE]), "title")
+                changed = true
             end
         end
     end
@@ -233,9 +242,24 @@ local function ApplyQuestMapList()
         for line in sf.objectiveFramePool:EnumerateActive() do
             if line.Text then
                 local pl = translateObjectiveLine(line.Text:GetText())
-                if pl then PF.ApplyText(line.Text, pl, "body") end
+                if pl then
+                    listScope.ApplyText(line.Text, pl, "body")
+                    changed = true
+                end
             end
         end
+    end
+    -- Unlike the tracker, this list had NO relayout call at all -- Blizzard's own
+    -- QuestLogQuests_Update() already ran QuestScrollFrame.Contents:Layout() using the
+    -- (English) row heights *before* our post-hook ever translates anything, so a title/
+    -- objective line that wraps onto more lines in Polish just overflowed into the row below
+    -- with nothing to correct it. Re-running Layout() (deferred one frame for the same
+    -- GetStringHeight() staleness reason as the tracker) forces it to re-measure and re-stack
+    -- using the now-translated text.
+    if changed and sf.Contents and type(sf.Contents.Layout) == "function" then
+        C_Timer.After(0, function()
+            if sf.Contents and type(sf.Contents.Layout) == "function" then sf.Contents:Layout() end
+        end)
     end
 end
 
