@@ -4,8 +4,10 @@ PolishForever is licensed under two licenses covering different parts of the pro
   `PolishForever.toc`): MIT License, see below.
 - **Translation data and text** (`Data/*.lua`): Creative Commons Attribution 4.0
   International (CC-BY-4.0), see `Data/LICENSE`.
-- **Fonts** (`Fonts/*.ttf`): SIL Open Font License 1.1, see `Fonts/OFL.txt`. Cinzel is
-  Copyright 2020 The Cinzel Project Authors; unmodified redistribution.
+- **Fonts** (`Fonts/*.ttf`): SIL Open Font License 1.1. Cinzel (titles), Copyright 2020 The
+  Cinzel Project Authors, see `Fonts/Cinzel-OFL.txt`. EB Garamond (body text), Copyright 2017
+  The EB Garamond Project Authors, see `Fonts/EBGaramond-OFL.txt`. Both are static instances
+  generated from the upstream variable fonts (via fonttools), not otherwise modified.
 
 ---
 

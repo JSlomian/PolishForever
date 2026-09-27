@@ -4,11 +4,14 @@ _G.PolishForever = PF
 local NBSP = "\194\160" -- marks text we already replaced (WoWpoPolsku does the same)
 PF.NBSP = NBSP
 
--- Cinzel (Google Fonts, SIL OFL 1.1, see Fonts/OFL.txt) -- full Polish glyph coverage,
--- fantasy/engraved look. Shipped as our own tracked files (not pack-derived).
+-- Cinzel and EB Garamond (Google Fonts, SIL OFL 1.1, see Fonts/OFL.txt) -- both verified full
+-- Polish glyph coverage. Cinzel is a titling/inscription face (near-unicase: its lowercase
+-- glyphs are shaped like small caps), great for headers but hard to read as running prose --
+-- kept for "title" only. EB Garamond is a real book-text serif with proper lowercase forms, used
+-- for "body" so paragraph-length quest/tooltip text is actually legible.
 local FONT_DIR = "Interface\\AddOns\\" .. ADDON .. "\\Fonts\\"
 PF.Fonts = {
-    body = FONT_DIR .. "Cinzel-Regular.ttf",
+    body = FONT_DIR .. "EBGaramond-Body.ttf",
     title = FONT_DIR .. "Cinzel-Bold.ttf",
 }
 
