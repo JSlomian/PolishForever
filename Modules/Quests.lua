@@ -536,7 +536,20 @@ end
 local hooked = false
 
 function Quests:OnEnable()
-    if hooked then return end
+    if hooked then
+        -- Already hooked from a previous enable -- this is a re-enable after OnDisable reverted
+        -- everything to English (see OnDisable below). Flip the scopes back and force a fresh
+        -- pass so anything that changed while disabled (a new quest picked up, tracker updated,
+        -- etc., none of which got registered with these scopes since Apply()/ApplyTracker() bail
+        -- out early while disabled) gets (re-)translated now, not just on its next natural update.
+        detailScope.SetPreviewEnglish(false)
+        trackerScope.SetPreviewEnglish(false)
+        listScope.SetPreviewEnglish(false)
+        Apply()
+        ApplyTracker()
+        ApplyQuestMapList()
+        return
+    end
     hooked = true
     -- Hooks stay installed; Apply() checks the toggle so disabling takes effect on the next window.
     for _, fn in ipairs({ "QuestInfo_Display", "QuestLog_UpdateQuestDetails", "QuestLogFrame_Update" }) do
@@ -571,6 +584,15 @@ function Quests:OnEnable()
     installControls()
 end
 
-function Quests:OnDisable() end
+function Quests:OnDisable()
+    -- Was a no-op (comment claimed "disabling takes effect on the next window" -- true for
+    -- windows that actually get closed/reopened, but the objective tracker is persistent: it
+    -- never closes, so an already-translated line just stayed Polish forever since nothing ever
+    -- reverted it). Force every currently-registered FontString in all three scopes back to
+    -- English immediately, same mechanism the PL/EN preview button itself uses.
+    detailScope.SetPreviewEnglish(true)
+    trackerScope.SetPreviewEnglish(true)
+    listScope.SetPreviewEnglish(true)
+end
 
 PF:RegisterModule("Quests", Quests)
