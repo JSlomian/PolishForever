@@ -67,14 +67,15 @@ local function BuildPanel()
             end
         else
             local mod = PF.modules[name]
+            local label_ = mod.label or name
             local check = CreateFrame("CheckButton", "PolishForeverCheck" .. name, panel, "UICheckButtonTemplate")
             check:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", previous == sub and -2 or 0, previous == sub and -14 or -6)
             local label = _G[check:GetName() .. "Text"]
-            label:SetText(name .. (mod.implemented and "" or "  |cff888888(not implemented yet)|r"))
+            label:SetText(label_ .. (mod.implemented and "" or "  |cff888888(not implemented yet)|r"))
             check.tooltipText = mod.desc
             check:SetScript("OnEnter", function(self)
                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:SetText(name)
+                GameTooltip:SetText(label_)
                 GameTooltip:AddLine(mod.desc, 1, 1, 1, true)
                 GameTooltip:Show()
             end)
@@ -84,6 +85,27 @@ local function BuildPanel()
             end)
             panel.checks[name] = check
             previous = check
+
+            -- Sub-checkboxes (see Core.lua's PF:IsSubEnabled/SetSubEnabled): indented under
+            -- their module's own master checkbox, e.g. Names -> Tooltips/Tracker & log
+            -- kill-counter/Nameplates & frames.
+            if mod.subs then
+                panel.subChecks = panel.subChecks or {}
+                panel.subChecks[name] = {}
+                for _, subDef in ipairs(mod.subs) do
+                    local subCheck = CreateFrame("CheckButton", "PolishForeverCheck" .. name .. subDef.key,
+                        panel, "UICheckButtonTemplate")
+                    subCheck:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", previous == check and 14 or 0, -4)
+                    subCheck:SetSize(24, 24)
+                    local subLabel = _G[subCheck:GetName() .. "Text"]
+                    subLabel:SetText(subDef.label)
+                    subCheck:SetScript("OnClick", function(self)
+                        PF:SetSubEnabled(name, subDef.key, self:GetChecked())
+                    end)
+                    panel.subChecks[name][subDef.key] = subCheck
+                    previous = subCheck
+                end
+            end
         end
     end
 
@@ -92,6 +114,11 @@ local function BuildPanel()
             check:SetChecked(PF:IsEnabled(name))
         end
         if panel.groupCheck then panel.groupCheck:SetChecked(groupChecked()) end
+        for name, subs in pairs(panel.subChecks or {}) do
+            for key, subCheck in pairs(subs) do
+                subCheck:SetChecked(PF:IsSubEnabled(name, key))
+            end
+        end
     end)
 end
 

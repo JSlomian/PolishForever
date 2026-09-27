@@ -53,9 +53,29 @@ function PF:SetEnabled(name, on)
     return true
 end
 
+-- Sub-toggles: a module can offer finer-grained surfaces under its own master checkbox (e.g.
+-- Creatures: "Names" master + Tooltips/Tracker & log/Nameplates & frames sub-checkboxes).
+-- def.subs = { key = "label", ... } declares them; PF:IsSubEnabled defaults a sub to true (same
+-- opt-out-not-opt-in default as top-level modules) until the player unchecks it. A sub only
+-- matters if the module's own master checkbox is also on -- callers should check both.
+function PF:IsSubEnabled(name, key)
+    local db = PolishForeverDB
+    if not db then return true end
+    local subs = db.subs and db.subs[name]
+    if not subs or subs[key] == nil then return true end
+    return subs[key] and true or false
+end
+
+function PF:SetSubEnabled(name, key, on)
+    PolishForeverDB.subs = PolishForeverDB.subs or {}
+    PolishForeverDB.subs[name] = PolishForeverDB.subs[name] or {}
+    PolishForeverDB.subs[name][key] = on and true or false
+end
+
 local function InitDB()
     PolishForeverDB = PolishForeverDB or {}
     PolishForeverDB.modules = PolishForeverDB.modules or {}
+    PolishForeverDB.subs = PolishForeverDB.subs or {}
     for name, value in pairs(defaults.modules) do
         if PolishForeverDB.modules[name] == nil then
             PolishForeverDB.modules[name] = value

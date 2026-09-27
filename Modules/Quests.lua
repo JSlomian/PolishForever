@@ -216,8 +216,12 @@ function translateObjectiveLine(text)
                 break
             end
         end
+        -- Creature-name lookup is separately gated by the "Names" module's own "Tracker & log
+        -- kill-counter" sub-checkbox (Items is not -- that's a different module/checkbox
+        -- entirely, always consulted here regardless of the Names settings).
+        local creaturesOn = PF:IsEnabled("Creatures") and PF:IsSubEnabled("Creatures", "tracker")
         local pl = (text2 and text2.Items and text2.Items[PF.Hash(rest)])
-            or (text2 and text2.Creatures and text2.Creatures[PF.Hash(rest)])
+            or (creaturesOn and text2 and text2.Creatures and text2.Creatures[PF.Hash(rest)])
         if pl then return counter .. pl .. suffix .. (bracket or "") end
     end)
     return ok and result or nil

@@ -17,12 +17,14 @@ Data\Skills.lua
 Data\UI.lua
 Data\Places.lua
 Data\Misc.lua
+Data\Creatures.lua
 Modules\Quests.lua
 Modules\Gossip.lua
 Modules\Talents.lua
 Modules\Skills.lua
 Modules\Abilities.lua
 Modules\Items.lua
+Modules\Creatures.lua
 Modules\Menus.lua
 Debug.lua
 Config.lua
