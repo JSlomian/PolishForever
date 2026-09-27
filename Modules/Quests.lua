@@ -68,6 +68,22 @@ local listScope = PF.NewPreviewScope()
 -- stayed English even though the equivalent tracker line correctly translated it.
 local translateObjectiveLine, completionLineText
 
+-- Static section headers/labels ("Quest Objectives", "Rewards", "Experience:", "You will
+-- receive:") are Blizzard GlobalStrings, not per-quest text -- PF.Text.UI already has them
+-- (translated as part of the general UI-text pass), this addon just never applied that table to
+-- these specific FontStrings (confirmed via screenshot: title/objectives/rewards paragraph all
+-- translated, these header/label lines sitting right next to them weren't). Same
+-- hash-mismatch-is-safe lookup as everywhere else -- an untranslated or renamed label just stays
+-- English rather than guessing.
+local function translateStaticLabel(fs)
+    local ok = pcall(function()
+        local text = fs and fs:GetText()
+        local pl = text and PF.Text and PF.Text.UI and PF.Text.UI[PF.Hash(text)]
+        if pl then detailScope.ApplyText(fs, pl, "body") end
+    end)
+    return ok
+end
+
 local function Apply()
     if not PF:IsEnabled("Quests") then return end
     local id = CurrentQuestID()
@@ -77,10 +93,22 @@ local function Apply()
     if shown(QuestFrameProgressPanel) then
         detailScope.ApplyText(QuestProgressTitleText, PF.Expand(q[TITLE]), "title")
         detailScope.ApplyText(QuestProgressText, PF.Expand(q[PROGRESS]), "body")
+        translateStaticLabel(QuestProgressRequiredItemsText)
+        translateStaticLabel(QuestProgressRequiredMoneyText)
     else
         detailScope.ApplyText(QuestInfoTitleHeader, PF.Expand(q[TITLE]), "title")
         detailScope.ApplyText(QuestInfoObjectivesText, PF.Expand(q[OBJECTIVES]), "body")
         detailScope.ApplyText(QuestInfoDescriptionText, PF.Expand(q[DESCRIPTION]), "body")
+        translateStaticLabel(QuestInfoObjectivesHeader)   -- "Quest Objectives"
+        translateStaticLabel(QuestInfoDescriptionHeader)  -- "Quest Description"
+        translateStaticLabel(QuestInfoRequiredMoneyText)
+        if QuestInfoRewardsFrame then
+            translateStaticLabel(QuestInfoRewardsFrame.Header)         -- "Rewards"
+            translateStaticLabel(QuestInfoRewardsFrame.ItemReceiveText) -- "You will receive:"
+            if QuestInfoRewardsFrame.XPFrame then
+                translateStaticLabel(QuestInfoRewardsFrame.XPFrame.ReceiveText) -- "Experience:"
+            end
+        end
         -- QuestInfoObjective1/2/... (confirmed via /pl dump) are FontString *regions* of
         -- QuestInfoObjectivesFrame, not child frames -- GetChildren() returns none of them
         -- (that's why this silently did nothing before), GetRegions() is what actually holds
@@ -104,10 +132,26 @@ local function Apply()
     refreshScroll()
 end
 
+-- Which part of the quest was actually on screen when Report was clicked, so the filed issue
+-- says e.g. "quest 366 -- progress" instead of just the bare ID -- a reader otherwise has no way
+-- to know whether the reporter meant the title, the objectives, or the turn-in text.
+local function currentQuestPart(q)
+    if shown(QuestFrameRewardPanel) then
+        return "rewards/completion", q and PF.Expand(q[COMPLETION])
+    elseif shown(QuestFrameProgressPanel) then
+        return "progress (in-progress dialogue)", q and PF.Expand(q[PROGRESS])
+    elseif shown(QuestFrameDetailPanel) then
+        return "objectives/description (accept dialogue)",
+            q and (PF.Expand(q[OBJECTIVES]) .. "\n\n" .. PF.Expand(q[DESCRIPTION]))
+    end
+    return "title", q and PF.Expand(q[TITLE])
+end
+
 local function reportCurrentQuest()
     local id = CurrentQuestID()
     local q = id and PF.Quests and PF.Quests[id]
-    PF.ReportBug("quest", id, q and PF.Expand(q[TITLE]) or nil)
+    local part, current = currentQuestPart(q)
+    PF.ReportBug("quest", id, current, part)
 end
 
 -- Small PL/EN preview + Report buttons on whichever quest frame is actually shown.

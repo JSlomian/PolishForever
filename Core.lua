@@ -419,13 +419,21 @@ StaticPopupDialogs["POLISHFOREVER_REPORT"] = {
 }
 
 -- kind: "quest" / "gossip" / "item" / "spell" / ... ; id: quest ID or other identifier (may be
--- nil); current: the Polish text currently shown, if any; extra: free-form context (e.g. the
--- English source line for gossip, which has no stable ID).
+-- nil); current: the Polish text currently shown, if any; extra: free-form context -- for quests,
+-- which panel/part was open (e.g. "objectives", "rewards"); for gossip, the English source line
+-- (which has no stable ID). Shown alongside id, not instead of it, so a report always says both
+-- *which* quest and *which part of it* -- previously the id-present branch dropped `extra`
+-- entirely, so every quest report just said the bare ID with no indication of which section
+-- (title/objectives/progress/rewards) the player was actually looking at.
 function PF.ReportBug(kind, id, current, extra)
-    local title = ("[translation] %s%s"):format(kind, id and (" " .. tostring(id)) or "")
+    local title = ("[translation] %s%s%s"):format(kind, id and (" " .. tostring(id)) or "",
+        extra and (" (" .. extra .. ")") or "")
+    local where = id and tostring(id) or "(see below)"
+    if id and extra then where = where .. " -- " .. extra end
+    if not id and extra then where = extra end
     local body = table.concat({
         "**Content type**: " .. tostring(kind),
-        "**Where**: " .. (id and tostring(id) or (extra or "(see below)")),
+        "**Where**: " .. where,
         "",
         "**Current Polish text**:",
         current or "",
