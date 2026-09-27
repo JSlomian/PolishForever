@@ -130,7 +130,8 @@ function PF:Dump()
                                 if okRect and l then rect = (" rect=%.0f,%.0f %.0fx%.0f"):format(l, b, w, h) end
                             end
                             out[#out + 1] = ("FOUND Back button: %s shown=%s%s chain=%s"):format(
-                                child.GetName or "<anon>", okShown and tostring(shown) or "?", rect, chain)
+                                (child.GetName and child:GetName()) or "<anon>",
+                                okShown and tostring(shown) or "?", rect, chain)
                         end
                     end
                     findBack(child, depth + 1, chain .. "/" .. (child.GetName and child:GetName() or "<anon>"))
