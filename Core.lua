@@ -4,15 +4,17 @@ _G.PolishForever = PF
 local NBSP = "\194\160" -- marks text we already replaced (WoWpoPolsku does the same)
 PF.NBSP = NBSP
 
--- Cinzel and EB Garamond (Google Fonts, SIL OFL 1.1, see Fonts/*-OFL.txt) -- both verified full
--- Polish glyph coverage. Cinzel is a titling/inscription face (near-unicase: its lowercase
--- glyphs are shaped like small caps), great for headers but hard to read as running prose --
--- kept for "title" only. EB Garamond is a real book-text serif with proper lowercase forms, used
--- for "body" so paragraph-length quest/tooltip text is actually legible.
+-- Metamorphous and EB Garamond (Google Fonts, SIL OFL 1.1, see Fonts/*-OFL.txt) -- both verified
+-- full Polish glyph coverage. Metamorphous is a rough Gothic display face -- Google's own font
+-- description credits it as inspired by Kiwi Media's "Morpheus/Morpheous", the same name/genre
+-- as Blizzard's actual title font (MORPHEUS.TTF); closer in spirit than Cinzel's clean titling
+-- caps, kept for "title" only (no bold weight is published upstream). EB Garamond is a real
+-- book-text serif with proper lowercase forms, used for "body" so paragraph-length quest/
+-- tooltip text is actually legible.
 local FONT_DIR = "Interface\\AddOns\\" .. ADDON .. "\\Fonts\\"
 PF.Fonts = {
     body = FONT_DIR .. "EBGaramond-Body.ttf",
-    title = FONT_DIR .. "Cinzel-Bold.ttf",
+    title = FONT_DIR .. "Metamorphous-Title.ttf",
 }
 
 PF.modules = {}
@@ -216,8 +218,8 @@ end
 
 -- Set text on a FontString using a Polish-capable font at the original size. The stock enUS fonts
 -- lack some Polish glyphs, which is why the addon ships its own.
--- "title" text gets a couple points larger, on top of the Cinzel-Bold face already used for that
--- kind, so it actually reads as a heading rather than same-size-but-different-font body text.
+-- "title" text gets a couple points larger, on top of the Metamorphous face already used for
+-- that kind, so it actually reads as a heading rather than same-size-but-different-font body text.
 local KIND_SIZE_BOOST = { title = 1 }
 function PF.SetText(fs, text, kind)
     if not fs or not text or text == "" then return false end

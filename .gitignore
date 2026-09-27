@@ -1,4 +1,4 @@
 # Data/*.lua and Fonts/*.ttf used to be gitignored because they were generated from/copied out
 # of the WoWpoPolsku pack (All Rights Reserved). As of 2026-09-26 translation data is our own
-# Haiku+Sonnet-reviewed work (see CLAUDE.md) and Fonts/ ships Cinzel (SIL OFL 1.1, tracked
-# below), so both are tracked in this repo now.
+# Haiku+Sonnet-reviewed work (see CLAUDE.md) and Fonts/ ships Metamorphous + EB Garamond (both
+# SIL OFL 1.1, tracked below), so both are tracked in this repo now.
