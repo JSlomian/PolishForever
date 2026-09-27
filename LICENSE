@@ -4,11 +4,10 @@ PolishForever is licensed under two licenses covering different parts of the pro
   `PolishForever.toc`): MIT License, see below.
 - **Translation data and text** (`Data/*.lua`): Creative Commons Attribution 4.0
   International (CC-BY-4.0), see `Data/LICENSE`.
-- **Fonts** (`Fonts/*.ttf`): SIL Open Font License 1.1. Metamorphous (titles), Copyright 2011
-  James Grieshaber, see `Fonts/Metamorphous-OFL.txt`. EB Garamond (body text), Copyright 2017
-  The EB Garamond Project Authors, see `Fonts/EBGaramond-OFL.txt`. EB Garamond is a static
-  instance generated from the upstream variable font (via fonttools), not otherwise modified;
-  Metamorphous is used unmodified as published upstream.
+- **Fonts** (`Fonts/*.ttf`): SIL Open Font License 1.1. EB Garamond, Copyright 2017 The EB
+  Garamond Project Authors, see `Fonts/EBGaramond-OFL.txt` -- used for both body (Regular) and
+  title (Bold) text; both are static instances generated from the upstream variable font (via
+  fonttools), not otherwise modified.
 
 ---
 

@@ -4,17 +4,16 @@ _G.PolishForever = PF
 local NBSP = "\194\160" -- marks text we already replaced (WoWpoPolsku does the same)
 PF.NBSP = NBSP
 
--- Metamorphous and EB Garamond (Google Fonts, SIL OFL 1.1, see Fonts/*-OFL.txt) -- both verified
--- full Polish glyph coverage. Metamorphous is a rough Gothic display face -- Google's own font
--- description credits it as inspired by Kiwi Media's "Morpheus/Morpheous", the same name/genre
--- as Blizzard's actual title font (MORPHEUS.TTF); closer in spirit than Cinzel's clean titling
--- caps, kept for "title" only (no bold weight is published upstream). EB Garamond is a real
--- book-text serif with proper lowercase forms, used for "body" so paragraph-length quest/
--- tooltip text is actually legible.
+-- EB Garamond (Google Fonts, SIL OFL 1.1, see Fonts/EBGaramond-OFL.txt), Regular for body and a
+-- Bold instance for title -- both verified full Polish glyph coverage. Tried a separate display
+-- face (Cinzel, then Metamorphous) for "title" earlier, but in practice most of this addon's
+-- "title" spots (quest log rows, tooltip headers) are stock WoW's own bold body font, not an
+-- ornate different typeface like Morpheus -- so a bold weight of the same body face actually
+-- matches the original look better than a stylistically distinct one.
 local FONT_DIR = "Interface\\AddOns\\" .. ADDON .. "\\Fonts\\"
 PF.Fonts = {
     body = FONT_DIR .. "EBGaramond-Body.ttf",
-    title = FONT_DIR .. "Metamorphous-Title.ttf",
+    title = FONT_DIR .. "EBGaramond-Title.ttf",
 }
 
 PF.modules = {}
@@ -218,9 +217,9 @@ end
 
 -- Set text on a FontString using a Polish-capable font at the original size. The stock enUS fonts
 -- lack some Polish glyphs, which is why the addon ships its own.
--- "title" text gets a couple points larger, on top of the Metamorphous face already used for
--- that kind, so it actually reads as a heading rather than same-size-but-different-font body text.
-local KIND_SIZE_BOOST = { title = 1 }
+-- "title" now just reuses the body face at a bold weight (see PF.Fonts above), so it doesn't need
+-- a size boost on top -- left at 0, kept as a table in case a future title font needs one again.
+local KIND_SIZE_BOOST = { title = 0 }
 function PF.SetText(fs, text, kind)
     if not fs or not text or text == "" then return false end
     if not fs.pfFont then
