@@ -25,6 +25,15 @@ local function walk(obj, depth, out, label)
     if not ok then return end
     local name = obj.GetName and obj:GetName() or nil
     local line = string.rep("  ", depth) .. (label or name or "<anon>") .. " [" .. tostring(objType) .. "]"
+    -- Rect on every node (not just the root summary) -- guessing pixel anchors from a screenshot
+    -- alone has been wrong three times in a row on this same window (QuestInfoFrame's own rect
+    -- turned out not to match its visible parchment at all), so the next attempt needs real
+    -- coordinates for every button/frame in the tree, not just the roots.
+    local okShown, shown = pcall(obj.IsShown, obj)
+    if okShown and shown and obj.GetRect then
+        local okRect, l, b, w, h = pcall(obj.GetRect, obj)
+        if okRect and l then line = line .. (" rect=%.0f,%.0f %.0fx%.0f"):format(l, b, w, h) end
+    end
     if objType == "FontString" then
         line = line .. " text=" .. tostring(obj:GetText()):sub(1, 70)
     else
