@@ -45,35 +45,44 @@ local function walk(obj, depth, out, label)
     end
 end
 
--- Fixed frames worth always including if they're up and shown right now -- unlike the
--- pattern-matched Tracker/QuestWatch roots below, these are only useful with the relevant
--- window actually open (quest detail/turn-in, gossip), so dump right after opening one.
-local FIXED_ROOTS = { "QuestInfoFrame", "QuestFrameProgressPanel", "QuestFrame", "GossipFrame" }
+local function matchesRoot(name)
+    return name:find("Tracker") or name:find("QuestWatch") or name:find("QuestInfo")
+        or name:find("QuestFrame") or name:find("QuestMap") or name:find("QuestLog")
+        or name:find("Gossip")
+end
 
 function PF:Dump()
     local out = {}
     local roots = {}
     for name, value in pairs(_G) do
-        if type(name) == "string" and (name:find("Tracker") or name:find("QuestWatch")) and type(value) == "table"
+        if type(name) == "string" and matchesRoot(name) and type(value) == "table"
             and type(value.GetObjectType) == "function" and not name:find("Template") then
             roots[#roots + 1] = name
         end
     end
     table.sort(roots)
-    for _, name in ipairs(FIXED_ROOTS) do
-        local obj = _G[name]
-        if obj and obj.GetObjectType and (not obj.IsShown or obj:IsShown()) then
-            roots[#roots + 1] = name
-        end
-    end
     out[#out + 1] = "roots: " .. table.concat(roots, ", ")
+    -- Summary line per match regardless of shown/hidden -- this is the part that answers "what
+    -- is this global's real parent frame", even for ones we don't deep-walk below.
     for _, name in ipairs(roots) do
-        -- only top-level roots: skip ones that are children of another root
         local obj = _G[name]
-        local parent = obj.GetParent and obj:GetParent()
+        local ok, objType = pcall(obj.GetObjectType, obj)
+        local okShown, shown = pcall(obj.IsShown, obj)
+        local parent = obj.GetParent and select(2, pcall(obj.GetParent, obj))
         local pname = parent and parent.GetName and parent:GetName()
-        if not (pname and _G[pname] and (pname:find("Tracker") or pname:find("QuestWatch"))) then
-            walk(obj, 0, out, name)
+        out[#out + 1] = ("%s :: [%s] shown=%s parent=%s"):format(
+            name, ok and objType or "?", okShown and tostring(shown) or "?", tostring(pname))
+    end
+    -- Deep walk only for ones actually shown right now, to keep the dump a manageable size.
+    for _, name in ipairs(roots) do
+        local obj = _G[name]
+        local ok, shown = pcall(obj.IsShown, obj)
+        if not ok or shown then
+            local parent = obj.GetParent and obj:GetParent()
+            local pname = parent and parent.GetName and parent:GetName()
+            if not (pname and _G[pname] and matchesRoot(pname)) then
+                walk(obj, 0, out, name)
+            end
         end
     end
     PolishForeverDB.dump = out

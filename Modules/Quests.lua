@@ -178,6 +178,39 @@ local function ApplyTracker()
     end
 end
 
+-- Modern "Map & Quest Log" list (the quest titles + inline objective bullets shown in the World
+-- Map's quest panel, before opening any single quest). Confirmed via Blizzard's own source
+-- (Gethe/wow-ui-source, Blizzard_UIPanels_Game/Mainline/QuestMapFrame.lua) that this is a
+-- completely different, older-style system from Gossip's ScrollBox/EnumerateFrames: titles and
+-- objective lines are separate CreateFramePool-managed widgets (QuestScrollFrame.titleFramePool /
+-- .objectiveFramePool), each carrying its own .questID, rebuilt from scratch on every
+-- QuestLogQuests_Update() call (a bare global function, not a method) -- so like the tracker,
+-- this must be re-applied every time that fires, not just once.
+local function ApplyQuestMapList()
+    if not PF:IsEnabled("Quests") then return end
+    local sf = QuestMapFrame and QuestMapFrame.QuestsFrame and QuestMapFrame.QuestsFrame.ScrollFrame
+    if not sf then return end
+    if sf.titleFramePool then
+        for title in sf.titleFramePool:EnumerateActive() do
+            local id = title.questID
+            local q = id and PF.Quests and PF.Quests[id]
+            if q and title.Text then
+                local current = title.Text:GetText()
+                local prefix = current and current:match("^(%[[^%]]*%]%s*)") or ""
+                PF.ApplyText(title.Text, prefix .. PF.Expand(q[TITLE]), "body")
+            end
+        end
+    end
+    if sf.objectiveFramePool then
+        for line in sf.objectiveFramePool:EnumerateActive() do
+            if line.Text then
+                local pl = translateObjectiveLine(line.Text:GetText())
+                if pl then PF.ApplyText(line.Text, pl, "body") end
+            end
+        end
+    end
+end
+
 local hooked = false
 
 function Quests:OnEnable()
@@ -194,6 +227,9 @@ function Quests:OnEnable()
                 hooksecurefunc(QuestObjectiveTracker, fn, ApplyTracker)
             end
         end
+    end
+    if type(_G["QuestLogQuests_Update"]) == "function" then
+        hooksecurefunc("QuestLogQuests_Update", ApplyQuestMapList)
     end
     local events = CreateFrame("Frame")
     for _, ev in ipairs({ "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "QUEST_POI_UPDATE", "PLAYER_ENTERING_WORLD" }) do
