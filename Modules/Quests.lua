@@ -288,28 +288,21 @@ end
 -- .objectiveFramePool), each carrying its own .questID, rebuilt from scratch on every
 -- QuestLogQuests_Update() call (a bare global function, not a method) -- so like the tracker,
 -- this must be re-applied every time that fires, not just once.
--- Unlike the tracker (which stacks blocks off a manually-tracked block.height), this list's
--- Contents:Layout() apparently re-measures each row from its OWN frame height, not just the
--- FontString's -- calling Layout() alone after translating (previous attempt) did nothing,
--- because the row widget itself (title/line) never grew even though its text now wraps onto
--- more lines. So: measure the FontString's height before/after (same staleness-safe deferred
--- pattern as setIfChanged), grow the row widget by that delta if it exposes Set/GetHeight, then
--- re-run Contents:Layout() so later rows re-stack using the corrected height.
-local function setListText(fs, text, kind, widget, id)
+-- Previous attempt manually grew the row widget's own height (widget:SetHeight) before calling
+-- Contents:Layout(), reasoning that Layout() re-stacks rows from their existing frame height
+-- rather than re-measuring the FontString. That produced a worse bug: this list's rows are
+-- CreateFramePool-managed and get released/reused on a category collapse/expand, and our manual
+-- SetHeight on a pooled frame fought with Blizzard's own pool/layout bookkeeping for that frame,
+-- leaving stale rows visually duplicated/overlapping once they were reassigned (screenshot:
+-- collapsing "Undercity" left quest 12's old objective text ghosted where quest 8's row/the
+-- category header now sit). Just re-running Blizzard's own Layout() after the text has settled
+-- -- without us touching any row's height directly -- is more conservative: if Layout() doesn't
+-- re-measure from content on its own, rows may still overflow visually, but that's a contained
+-- cosmetic issue, not pool-state corruption.
+local function setListText(fs, text, kind)
     if not (fs and text and text ~= "" and fs:GetText() ~= text) then return end
-    local before = fs.GetStringHeight and fs:GetStringHeight() or 0
     listScope.ApplyText(fs, text, kind)
-    if not (widget and widget.GetHeight and widget.SetHeight) then return end
     C_Timer.After(0, function()
-        -- This is a CreateFramePool-managed row -- QuestLogQuests_Update can run again (a
-        -- scroll, a category collapse/expand, another quest update) before this deferred
-        -- callback fires, recycling `widget` for a *different* quest in the meantime. Resizing
-        -- or forcing a re-layout on someone else's row is exactly what produced ghost/duplicate
-        -- text bleeding between rows -- bail out unless it's still showing the quest we expect.
-        if not (fs and fs.GetStringHeight and widget.GetHeight and widget.questID == id) then return end
-        local delta = fs:GetStringHeight() - before
-        if delta == 0 then return end
-        widget:SetHeight(widget:GetHeight() + delta)
         local sf = QuestMapFrame and QuestMapFrame.QuestsFrame and QuestMapFrame.QuestsFrame.ScrollFrame
         if sf and sf.Contents and type(sf.Contents.Layout) == "function" then
             sf.Contents:Layout()
@@ -328,7 +321,7 @@ local function ApplyQuestMapList()
             if q and title.Text then
                 local current = title.Text:GetText()
                 local prefix = titlePrefix(current)
-                setListText(title.Text, prefix .. PF.Expand(q[TITLE]), "title", title, id)
+                setListText(title.Text, prefix .. PF.Expand(q[TITLE]), "title")
             end
         end
     end
@@ -348,7 +341,7 @@ local function ApplyQuestMapList()
                 -- detail view) is the remaining possibility, not an open-ended guess.
                 local pl = translateObjectiveLine(text) or completionLineText(text)
                     or (q and q[OBJECTIVES] ~= "" and PF.Expand(q[OBJECTIVES]))
-                if pl then setListText(line.Text, pl, "body", line, id) end
+                if pl then setListText(line.Text, pl, "body") end
             end
         end
     end
