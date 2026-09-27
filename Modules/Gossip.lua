@@ -46,9 +46,17 @@ local function Lookup(english)
     return pl
 end
 
+-- Last thing translated, for the Report button's context (gossip has no stable ID to key a
+-- bug report on, unlike quests -- the English source line is the best we can offer).
+local lastEnglish, lastPolish
+
 local function Translate(fs, english, kind)
     local pl = Lookup(english)
-    if pl then PF.SetText(fs, PF.Expand(pl) .. PF.NBSP, kind) end
+    if pl then
+        local text = PF.Expand(pl) .. PF.NBSP
+        PF.ApplyText(fs, text, kind)
+        lastEnglish, lastPolish = english, text
+    end
 end
 
 -- Option buttons hold coloured text like "|cff0000ffTitle|r"; hash only the plain text.
@@ -62,7 +70,24 @@ local function ApplyOption(button)
     local pl = Lookup(plain)
     if pl and button.GetFontString then
         local fs = button:GetFontString()
-        if fs then PF.SetText(fs, prefix .. PF.Expand(pl) .. PF.NBSP .. suffix, "body") end
+        if fs then
+            local out = prefix .. PF.Expand(pl) .. PF.NBSP .. suffix
+            PF.ApplyText(fs, out, "body")
+            lastEnglish, lastPolish = plain, out
+        end
+    end
+end
+
+local function reportGossip()
+    PF.ReportBug("gossip", nil, lastPolish, lastEnglish)
+end
+
+local controlsInstalled = false
+local function installControls()
+    if controlsInstalled then return end
+    controlsInstalled = true
+    if GossipFrame then
+        pcall(PF.CreatePreviewControls, GossipFrame, "BOTTOMRIGHT", -8, 8, reportGossip)
     end
 end
 
@@ -92,6 +117,7 @@ function Gossip:OnEnable()
         C_Timer.After(0, Apply)
         C_Timer.After(0.15, Apply)
     end)
+    installControls()
 end
 
 function Gossip:OnDisable() end

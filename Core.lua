@@ -4,7 +4,7 @@ _G.PolishForever = PF
 local NBSP = "\194\160" -- marks text we already replaced (WoWpoPolsku does the same)
 PF.NBSP = NBSP
 
--- Cinzel and EB Garamond (Google Fonts, SIL OFL 1.1, see Fonts/OFL.txt) -- both verified full
+-- Cinzel and EB Garamond (Google Fonts, SIL OFL 1.1, see Fonts/*-OFL.txt) -- both verified full
 -- Polish glyph coverage. Cinzel is a titling/inscription face (near-unicase: its lowercase
 -- glyphs are shaped like small caps), great for headers but hard to read as running prose --
 -- kept for "title" only. EB Garamond is a real book-text serif with proper lowercase forms, used
@@ -220,6 +220,144 @@ function PF.SetText(fs, text, kind)
     end
     fs:SetText(text)
     return true
+end
+
+-- EN/PL preview toggle ------------------------------------------------------------------------
+-- Session-only (never saved to PolishForeverDB): lets a player flip a currently-open window
+-- back to the original English to compare/verify a translation, without it being a persistent
+-- setting. PF.ApplyText wraps every PF.SetText call site in Quests/Gossip so both the original
+-- and translated text are cached on the widget the first time it's touched, and toggling the
+-- flag just re-applies whichever one is wanted -- no need to re-run Blizzard's own display logic.
+PF.previewEnglish = false
+local activeTexts = setmetatable({}, { __mode = "k" })
+local previewWatchers = setmetatable({}, { __mode = "k" })
+
+local function showOriginal(fs)
+    if fs.pfFont then fs:SetFont(fs.pfFont[1], fs.pfFont[2] or 12, fs.pfFont[3]) end
+    fs:SetText(fs.pfOriginal or "")
+end
+
+-- Use this (not PF.SetText) at every "we're about to show a translation" call site that should
+-- respect the preview toggle.
+function PF.ApplyText(fs, polish, kind)
+    if not fs then return end
+    if fs.pfOriginal == nil then fs.pfOriginal = fs:GetText() or "" end
+    if polish and polish ~= "" then
+        fs.pfPolish = polish
+        fs.pfKind = kind
+    end
+    activeTexts[fs] = true
+    if PF.previewEnglish then
+        showOriginal(fs)
+    elseif fs.pfPolish and fs.pfPolish ~= "" then
+        PF.SetText(fs, fs.pfPolish, fs.pfKind)
+    end
+end
+
+function PF.SetPreviewEnglish(on)
+    PF.previewEnglish = on and true or false
+    for fs in pairs(activeTexts) do
+        if fs and fs.GetObjectType and pcall(fs.GetObjectType, fs) then
+            if PF.previewEnglish then
+                showOriginal(fs)
+            elseif fs.pfPolish and fs.pfPolish ~= "" then
+                PF.SetText(fs, fs.pfPolish, fs.pfKind)
+            end
+        end
+    end
+    for watcher in pairs(previewWatchers) do
+        local ok = pcall(watcher)
+        if not ok then previewWatchers[watcher] = nil end
+    end
+end
+
+-- A small "PL/EN" button plus an optional "Report" button, anchored to `parent` at `point`
+-- offset by (x, y). `reportFn`, if given, is the report button's OnClick handler. Returns the
+-- toggle button (its label auto-updates whenever PF.SetPreviewEnglish is called from anywhere).
+function PF.CreatePreviewControls(parent, point, x, y, reportFn)
+    if not parent then return end
+    local toggle = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    toggle:SetSize(36, 20)
+    toggle:SetPoint(point, parent, point, x, y)
+    local function updateLabel() toggle:SetText(PF.previewEnglish and "EN" or "PL") end
+    updateLabel()
+    previewWatchers[updateLabel] = true
+    toggle:SetScript("OnClick", function() PF.SetPreviewEnglish(not PF.previewEnglish) end)
+    toggle:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText("PolishForever")
+        GameTooltip:AddLine("Click to preview " .. (PF.previewEnglish and "Polish" or "original English") ..
+            " (not saved, just for this window).", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    toggle:SetScript("OnLeave", GameTooltip_Hide)
+
+    if reportFn then
+        local report = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+        report:SetSize(56, 20)
+        report:SetPoint("LEFT", toggle, "RIGHT", 4, 0)
+        report:SetText("Report")
+        report:SetScript("OnClick", reportFn)
+        report:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:SetText("Report a translation issue")
+            GameTooltip:Show()
+        end)
+        report:SetScript("OnLeave", GameTooltip_Hide)
+    end
+    return toggle
+end
+
+-- Bug reports -----------------------------------------------------------------------------------
+-- CHANGEME once the addon is actually published -- see the GitHub-publish plan; the "Report"
+-- buttons are wired up now so they're ready the moment this is a real repo URL.
+PF.REPO_URL = "https://github.com/CHANGEME/PolishForever"
+
+local function urlEncode(s)
+    s = tostring(s or ""):gsub("\r\n", "\n"):gsub("\n", "\r\n")
+    s = s:gsub("([^%w %-%_%.%~])", function(c) return ("%%%02X"):format(c:byte()) end)
+    return (s:gsub(" ", "+"))
+end
+
+StaticPopupDialogs["POLISHFOREVER_REPORT"] = {
+    text = "Copy this link (Ctrl+C) and open it in your browser to file the report:",
+    button1 = CLOSE,
+    hasEditBox = true,
+    editBoxWidth = 350,
+    OnShow = function(self)
+        self.editBox:SetText(self.data or "")
+        self.editBox:HighlightText()
+        self.editBox:SetFocus()
+    end,
+    EditBoxOnEnterPressed = function(self) self:GetParent():Hide() end,
+    EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+    preferredIndex = 3,
+}
+
+-- kind: "quest" / "gossip" / "item" / "spell" / ... ; id: quest ID or other identifier (may be
+-- nil); current: the Polish text currently shown, if any; extra: free-form context (e.g. the
+-- English source line for gossip, which has no stable ID).
+function PF.ReportBug(kind, id, current, extra)
+    local title = ("[translation] %s%s"):format(kind, id and (" " .. tostring(id)) or "")
+    local body = table.concat({
+        "**Content type**: " .. tostring(kind),
+        "**Where**: " .. (id and tostring(id) or (extra or "(see below)")),
+        "",
+        "**Current Polish text**:",
+        current or "",
+        "",
+        "**Suggested Polish text**:",
+        "",
+        "",
+        "**Why**:",
+        "",
+    }, "\n")
+    local url = PF.REPO_URL .. "/issues/new?labels=translation&title=" .. urlEncode(title) ..
+        "&body=" .. urlEncode(body)
+    StaticPopup_Show("POLISHFOREVER_REPORT", nil, nil, url)
 end
 
 -- Lifecycle ----------------------------------------------------------------------------------

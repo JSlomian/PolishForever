@@ -42,17 +42,40 @@ local function Apply()
     if not q then return end
 
     if shown(QuestFrameProgressPanel) then
-        PF.SetText(QuestProgressTitleText, PF.Expand(q[TITLE]), "title")
-        PF.SetText(QuestProgressText, PF.Expand(q[PROGRESS]), "body")
+        PF.ApplyText(QuestProgressTitleText, PF.Expand(q[TITLE]), "title")
+        PF.ApplyText(QuestProgressText, PF.Expand(q[PROGRESS]), "body")
     else
-        PF.SetText(QuestInfoTitleHeader, PF.Expand(q[TITLE]), "title")
-        PF.SetText(QuestInfoObjectivesText, PF.Expand(q[OBJECTIVES]), "body")
-        PF.SetText(QuestInfoDescriptionText, PF.Expand(q[DESCRIPTION]), "body")
+        PF.ApplyText(QuestInfoTitleHeader, PF.Expand(q[TITLE]), "title")
+        PF.ApplyText(QuestInfoObjectivesText, PF.Expand(q[OBJECTIVES]), "body")
+        PF.ApplyText(QuestInfoDescriptionText, PF.Expand(q[DESCRIPTION]), "body")
         if shown(QuestFrameRewardPanel) then
-            PF.SetText(QuestInfoRewardText, PF.Expand(q[COMPLETION]), "body")
+            PF.ApplyText(QuestInfoRewardText, PF.Expand(q[COMPLETION]), "body")
         end
     end
     refreshScroll()
+end
+
+local function reportCurrentQuest()
+    local id = CurrentQuestID()
+    local q = id and PF.Quests and PF.Quests[id]
+    PF.ReportBug("quest", id, q and PF.Expand(q[TITLE]) or nil)
+end
+
+-- Small PL/EN preview + Report buttons on whichever quest frame is actually shown. QuestInfoFrame
+-- is shared by both the quest-log detail view and the NPC quest-accept dialogue (see
+-- CurrentQuestID above), so one set of controls there covers both; QuestFrameProgressPanel (the
+-- turn-in panel) is a separate frame and gets its own. Guarded/pcall-wrapped per frame so a wrong
+-- assumption about one doesn't stop the other from being created.
+local controlsInstalled = false
+local function installControls()
+    if controlsInstalled then return end
+    controlsInstalled = true
+    if QuestInfoFrame then
+        pcall(PF.CreatePreviewControls, QuestInfoFrame, "BOTTOMRIGHT", -8, 8, reportCurrentQuest)
+    end
+    if QuestFrameProgressPanel then
+        pcall(PF.CreatePreviewControls, QuestFrameProgressPanel, "BOTTOMRIGHT", -8, 8, reportCurrentQuest)
+    end
 end
 
 -- Objective tracker (the "Quests" list on the right). Structure, from /pl dump on the beta client:
@@ -70,7 +93,7 @@ end
 local function setIfChanged(fs, text, kind, block)
     if fs and text and text ~= "" and fs:GetText() ~= text then
         local before = fs.GetStringHeight and fs:GetStringHeight() or 0
-        PF.SetText(fs, text, kind)
+        PF.ApplyText(fs, text, kind)
         local after = fs.GetStringHeight and fs:GetStringHeight() or 0
         local delta = after - before
         if delta ~= 0 and block and type(block.height) == "number" then
@@ -154,6 +177,7 @@ function Quests:OnEnable()
     if QuestFrameRewardPanel then
         QuestFrameRewardPanel:HookScript("OnShow", Apply)
     end
+    installControls()
 end
 
 function Quests:OnDisable() end
