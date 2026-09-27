@@ -45,6 +45,11 @@ local function walk(obj, depth, out, label)
     end
 end
 
+-- Fixed frames worth always including if they're up and shown right now -- unlike the
+-- pattern-matched Tracker/QuestWatch roots below, these are only useful with the relevant
+-- window actually open (quest detail/turn-in, gossip), so dump right after opening one.
+local FIXED_ROOTS = { "QuestInfoFrame", "QuestFrameProgressPanel", "QuestFrame", "GossipFrame" }
+
 function PF:Dump()
     local out = {}
     local roots = {}
@@ -55,6 +60,12 @@ function PF:Dump()
         end
     end
     table.sort(roots)
+    for _, name in ipairs(FIXED_ROOTS) do
+        local obj = _G[name]
+        if obj and obj.GetObjectType and (not obj.IsShown or obj:IsShown()) then
+            roots[#roots + 1] = name
+        end
+    end
     out[#out + 1] = "roots: " .. table.concat(roots, ", ")
     for _, name in ipairs(roots) do
         -- only top-level roots: skip ones that are children of another root
