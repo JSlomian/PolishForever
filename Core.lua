@@ -419,31 +419,38 @@ StaticPopupDialogs["POLISHFOREVER_REPORT"] = {
 }
 
 -- kind: "quest" / "gossip" / "item" / "spell" / ... ; id: quest ID or other identifier (may be
--- nil); current: the Polish text currently shown, if any; extra: free-form context -- for quests,
--- which panel/part was open (e.g. "objectives", "rewards"); for gossip, the English source line
--- (which has no stable ID). Shown alongside id, not instead of it, so a report always says both
--- *which* quest and *which part of it* -- previously the id-present branch dropped `extra`
--- entirely, so every quest report just said the bare ID with no indication of which section
--- (title/objectives/progress/rewards) the player was actually looking at.
+-- nil) -- always shown on its own line, never buried inside a text dump, so a reader can jump
+-- straight to that ID without having to parse which quest a wall of text belongs to; current: the
+-- Polish text currently shown -- either a plain string, or a list of {label, text} pairs when more
+-- than one field is relevant (e.g. the accept dialogue shows objectives AND description at once;
+-- concatenating them into one unlabeled blob left no way to tell them apart, or to tell where one
+-- ends and the id/context begins); extra: free-form context -- for quests, which panel/part was
+-- open (e.g. "objectives", "rewards"); for gossip, the English source line (which has no stable
+-- ID).
 function PF.ReportBug(kind, id, current, extra)
     local title = ("[translation] %s%s%s"):format(kind, id and (" " .. tostring(id)) or "",
         extra and (" (" .. extra .. ")") or "")
-    local where = id and tostring(id) or "(see below)"
-    if id and extra then where = where .. " -- " .. extra end
-    if not id and extra then where = extra end
-    local body = table.concat({
+    local lines = {
         "**Content type**: " .. tostring(kind),
-        "**Where**: " .. where,
-        "",
-        "**Current Polish text**:",
-        current or "",
-        "",
-        "**Suggested Polish text**:",
-        "",
-        "",
-        "**Why**:",
-        "",
-    }, "\n")
+        "**ID**: " .. (id and tostring(id) or "(none -- see context below)"),
+    }
+    if extra then lines[#lines + 1] = "**Part/context**: " .. extra end
+    lines[#lines + 1] = ""
+    if type(current) == "table" then
+        for _, field in ipairs(current) do
+            lines[#lines + 1] = "**Current Polish text (" .. field.label .. ")**:"
+            lines[#lines + 1] = field.text or ""
+            lines[#lines + 1] = ""
+        end
+    else
+        lines[#lines + 1] = "**Current Polish text**:"
+        lines[#lines + 1] = current or ""
+        lines[#lines + 1] = ""
+    end
+    for _, l in ipairs({ "**Suggested Polish text**:", "", "", "**Why**:", "" }) do
+        lines[#lines + 1] = l
+    end
+    local body = table.concat(lines, "\n")
     local url = PF.REPO_URL .. "/issues/new?labels=translation&title=" .. urlEncode(title) ..
         "&body=" .. urlEncode(body)
     StaticPopup_Show("POLISHFOREVER_REPORT", nil, nil, url)

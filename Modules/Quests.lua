@@ -75,11 +75,15 @@ local translateObjectiveLine, completionLineText
 -- translated, these header/label lines sitting right next to them weren't). Same
 -- hash-mismatch-is-safe lookup as everywhere else -- an untranslated or renamed label just stays
 -- English rather than guessing.
-local function translateStaticLabel(fs)
+-- kind must match whatever font Blizzard's own XML gave this FontString (QuestTitleFont vs
+-- QuestFont) -- these are fixed-width, single-line-by-default labels, so using the wrong (larger)
+-- kind for a plain QuestFont label is exactly what doesn't fit; the header labels themselves
+-- (QuestTitleFont) need "title", not "body".
+local function translateStaticLabel(fs, kind)
     local ok = pcall(function()
         local text = fs and fs:GetText()
         local pl = text and PF.Text and PF.Text.UI and PF.Text.UI[PF.Hash(text)]
-        if pl then detailScope.ApplyText(fs, pl, "body") end
+        if pl then detailScope.ApplyText(fs, pl, kind or "body") end
     end)
     return ok
 end
@@ -93,20 +97,20 @@ local function Apply()
     if shown(QuestFrameProgressPanel) then
         detailScope.ApplyText(QuestProgressTitleText, PF.Expand(q[TITLE]), "title")
         detailScope.ApplyText(QuestProgressText, PF.Expand(q[PROGRESS]), "body")
-        translateStaticLabel(QuestProgressRequiredItemsText)
-        translateStaticLabel(QuestProgressRequiredMoneyText)
+        translateStaticLabel(QuestProgressRequiredItemsText, "title") -- QuestTitleFont
+        translateStaticLabel(QuestProgressRequiredMoneyText, "body")  -- QuestFontNormalSmall
     else
         detailScope.ApplyText(QuestInfoTitleHeader, PF.Expand(q[TITLE]), "title")
         detailScope.ApplyText(QuestInfoObjectivesText, PF.Expand(q[OBJECTIVES]), "body")
         detailScope.ApplyText(QuestInfoDescriptionText, PF.Expand(q[DESCRIPTION]), "body")
-        translateStaticLabel(QuestInfoObjectivesHeader)   -- "Quest Objectives"
-        translateStaticLabel(QuestInfoDescriptionHeader)  -- "Quest Description"
-        translateStaticLabel(QuestInfoRequiredMoneyText)
+        translateStaticLabel(QuestInfoObjectivesHeader, "title")   -- "Quest Objectives" (QuestTitleFont)
+        translateStaticLabel(QuestInfoDescriptionHeader, "title")  -- "Quest Description" (QuestTitleFont)
+        translateStaticLabel(QuestInfoRequiredMoneyText, "body")
         if QuestInfoRewardsFrame then
-            translateStaticLabel(QuestInfoRewardsFrame.Header)         -- "Rewards"
-            translateStaticLabel(QuestInfoRewardsFrame.ItemReceiveText) -- "You will receive:"
+            translateStaticLabel(QuestInfoRewardsFrame.Header, "title")          -- "Rewards" (QuestTitleFont)
+            translateStaticLabel(QuestInfoRewardsFrame.ItemReceiveText, "body")   -- "You will receive:" (QuestFont)
             if QuestInfoRewardsFrame.XPFrame then
-                translateStaticLabel(QuestInfoRewardsFrame.XPFrame.ReceiveText) -- "Experience:"
+                translateStaticLabel(QuestInfoRewardsFrame.XPFrame.ReceiveText, "body") -- "Experience:" (QuestFont)
             end
         end
         -- QuestInfoObjective1/2/... (confirmed via /pl dump) are FontString *regions* of
@@ -135,14 +139,21 @@ end
 -- Which part of the quest was actually on screen when Report was clicked, so the filed issue
 -- says e.g. "quest 366 -- progress" instead of just the bare ID -- a reader otherwise has no way
 -- to know whether the reporter meant the title, the objectives, or the turn-in text.
+-- Returns (part, current) where `current` is a plain string for a single field, or a list of
+-- {label, text} when more than one field is on screen at once (the accept dialogue shows
+-- objectives AND description together -- these used to get silently concatenated into one
+-- unlabeled blob, which read like the whole thing was one field and gave no way to tell where
+-- one ends and the other begins).
 local function currentQuestPart(q)
     if shown(QuestFrameRewardPanel) then
         return "rewards/completion", q and PF.Expand(q[COMPLETION])
     elseif shown(QuestFrameProgressPanel) then
         return "progress (in-progress dialogue)", q and PF.Expand(q[PROGRESS])
     elseif shown(QuestFrameDetailPanel) then
-        return "objectives/description (accept dialogue)",
-            q and (PF.Expand(q[OBJECTIVES]) .. "\n\n" .. PF.Expand(q[DESCRIPTION]))
+        return "objectives/description (accept dialogue)", q and {
+            { label = "objectives", text = PF.Expand(q[OBJECTIVES]) },
+            { label = "description", text = PF.Expand(q[DESCRIPTION]) },
+        }
     end
     return "title", q and PF.Expand(q[TITLE])
 end
