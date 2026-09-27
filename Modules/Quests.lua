@@ -288,11 +288,34 @@ end
 -- .objectiveFramePool), each carrying its own .questID, rebuilt from scratch on every
 -- QuestLogQuests_Update() call (a bare global function, not a method) -- so like the tracker,
 -- this must be re-applied every time that fires, not just once.
+-- Unlike the tracker (which stacks blocks off a manually-tracked block.height), this list's
+-- Contents:Layout() apparently re-measures each row from its OWN frame height, not just the
+-- FontString's -- calling Layout() alone after translating (previous attempt) did nothing,
+-- because the row widget itself (title/line) never grew even though its text now wraps onto
+-- more lines. So: measure the FontString's height before/after (same staleness-safe deferred
+-- pattern as setIfChanged), grow the row widget by that delta if it exposes Set/GetHeight, then
+-- re-run Contents:Layout() so later rows re-stack using the corrected height.
+local function setListText(fs, text, kind, widget)
+    if not (fs and text and text ~= "" and fs:GetText() ~= text) then return end
+    local before = fs.GetStringHeight and fs:GetStringHeight() or 0
+    listScope.ApplyText(fs, text, kind)
+    if not (widget and widget.GetHeight and widget.SetHeight) then return end
+    C_Timer.After(0, function()
+        if not (fs and fs.GetStringHeight and widget.GetHeight) then return end
+        local delta = fs:GetStringHeight() - before
+        if delta == 0 then return end
+        widget:SetHeight(widget:GetHeight() + delta)
+        local sf = QuestMapFrame and QuestMapFrame.QuestsFrame and QuestMapFrame.QuestsFrame.ScrollFrame
+        if sf and sf.Contents and type(sf.Contents.Layout) == "function" then
+            sf.Contents:Layout()
+        end
+    end)
+end
+
 local function ApplyQuestMapList()
     if not PF:IsEnabled("Quests") then return end
     local sf = QuestMapFrame and QuestMapFrame.QuestsFrame and QuestMapFrame.QuestsFrame.ScrollFrame
     if not sf then return end
-    local changed = false
     if sf.titleFramePool then
         for title in sf.titleFramePool:EnumerateActive() do
             local id = title.questID
@@ -300,8 +323,7 @@ local function ApplyQuestMapList()
             if q and title.Text then
                 local current = title.Text:GetText()
                 local prefix = titlePrefix(current)
-                listScope.ApplyText(title.Text, prefix .. PF.Expand(q[TITLE]), "title")
-                changed = true
+                setListText(title.Text, prefix .. PF.Expand(q[TITLE]), "title", title)
             end
         end
     end
@@ -321,24 +343,39 @@ local function ApplyQuestMapList()
                 -- detail view) is the remaining possibility, not an open-ended guess.
                 local pl = translateObjectiveLine(text) or completionLineText(text)
                     or (q and q[OBJECTIVES] ~= "" and PF.Expand(q[OBJECTIVES]))
-                if pl then
-                    listScope.ApplyText(line.Text, pl, "body")
-                    changed = true
-                end
+                if pl then setListText(line.Text, pl, "body", line) end
             end
         end
     end
-    -- Unlike the tracker, this list had NO relayout call at all -- Blizzard's own
-    -- QuestLogQuests_Update() already ran QuestScrollFrame.Contents:Layout() using the
-    -- (English) row heights *before* our post-hook ever translates anything, so a title/
-    -- objective line that wraps onto more lines in Polish just overflowed into the row below
-    -- with nothing to correct it. Re-running Layout() (deferred one frame for the same
-    -- GetStringHeight() staleness reason as the tracker) forces it to re-measure and re-stack
-    -- using the now-translated text.
-    if changed and sf.Contents and type(sf.Contents.Layout) == "function" then
-        C_Timer.After(0, function()
-            if sf.Contents and type(sf.Contents.Layout) == "function" then sf.Contents:Layout() end
-        end)
+end
+
+-- Quest-list row tooltip (hovering a quest in the Map & Quest Log's title list): built from
+-- plain GameTooltip:AddLine calls (title, level requirement, then the same kind of
+-- objective/flavor lines as the row itself), not a dedicated SetXxx method like Items/Spells
+-- get -- so there's nothing clean to hook there. Instead: hooked on GameTooltip:Show() itself
+-- (cheap to bail early -- almost every tooltip's owner has no .questID) and translated using the
+-- row button's own .questID, same as ApplyQuestMapList.
+local function translateQuestTooltip(tt)
+    if not PF:IsEnabled("Quests") then return end
+    local okOwner, owner = pcall(tt.GetOwner, tt)
+    local id = okOwner and owner and owner.questID
+    local q = id and PF.Quests and PF.Quests[id]
+    if not q then return end
+    local name = tt.GetName and tt:GetName()
+    if not name then return end
+    for i = 1, tt:NumLines() do
+        local fs = _G[name .. "TextLeft" .. i]
+        local text = fs and fs:GetText()
+        if text then
+            local pl
+            if i == 1 then
+                pl = titlePrefix(text) .. PF.Expand(q[TITLE])
+            else
+                pl = translateObjectiveLine(text) or completionLineText(text)
+                    or (q[OBJECTIVES] ~= "" and PF.Expand(q[OBJECTIVES]))
+            end
+            if pl and pl ~= text then PF.SetText(fs, pl, i == 1 and "title" or "body") end
+        end
     end
 end
 
@@ -361,6 +398,9 @@ function Quests:OnEnable()
     end
     if type(_G["QuestLogQuests_Update"]) == "function" then
         hooksecurefunc("QuestLogQuests_Update", ApplyQuestMapList)
+    end
+    if GameTooltip then
+        hooksecurefunc(GameTooltip, "Show", function() translateQuestTooltip(GameTooltip) end)
     end
     local events = CreateFrame("Frame")
     for _, ev in ipairs({ "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "QUEST_POI_UPDATE", "PLAYER_ENTERING_WORLD" }) do
