@@ -295,13 +295,18 @@ end
 -- more lines. So: measure the FontString's height before/after (same staleness-safe deferred
 -- pattern as setIfChanged), grow the row widget by that delta if it exposes Set/GetHeight, then
 -- re-run Contents:Layout() so later rows re-stack using the corrected height.
-local function setListText(fs, text, kind, widget)
+local function setListText(fs, text, kind, widget, id)
     if not (fs and text and text ~= "" and fs:GetText() ~= text) then return end
     local before = fs.GetStringHeight and fs:GetStringHeight() or 0
     listScope.ApplyText(fs, text, kind)
     if not (widget and widget.GetHeight and widget.SetHeight) then return end
     C_Timer.After(0, function()
-        if not (fs and fs.GetStringHeight and widget.GetHeight) then return end
+        -- This is a CreateFramePool-managed row -- QuestLogQuests_Update can run again (a
+        -- scroll, a category collapse/expand, another quest update) before this deferred
+        -- callback fires, recycling `widget` for a *different* quest in the meantime. Resizing
+        -- or forcing a re-layout on someone else's row is exactly what produced ghost/duplicate
+        -- text bleeding between rows -- bail out unless it's still showing the quest we expect.
+        if not (fs and fs.GetStringHeight and widget.GetHeight and widget.questID == id) then return end
         local delta = fs:GetStringHeight() - before
         if delta == 0 then return end
         widget:SetHeight(widget:GetHeight() + delta)
@@ -323,7 +328,7 @@ local function ApplyQuestMapList()
             if q and title.Text then
                 local current = title.Text:GetText()
                 local prefix = titlePrefix(current)
-                setListText(title.Text, prefix .. PF.Expand(q[TITLE]), "title", title)
+                setListText(title.Text, prefix .. PF.Expand(q[TITLE]), "title", title, id)
             end
         end
     end
@@ -343,7 +348,7 @@ local function ApplyQuestMapList()
                 -- detail view) is the remaining possibility, not an open-ended guess.
                 local pl = translateObjectiveLine(text) or completionLineText(text)
                     or (q and q[OBJECTIVES] ~= "" and PF.Expand(q[OBJECTIVES]))
-                if pl then setListText(line.Text, pl, "body", line) end
+                if pl then setListText(line.Text, pl, "body", line, id) end
             end
         end
     end
