@@ -78,30 +78,66 @@ function PF:Dump()
         out[#out + 1] = ("%s :: [%s] shown=%s parent=%s%s"):format(
             name, ok and objType or "?", okShown and tostring(shown) or "?", tostring(pname), rect)
     end
-    -- Sibling buttons of QuestMapDetailsScrollFrame (looking for the "Back" button specifically,
-    -- to anchor the PL/Report controls to it instead of guessing a pixel offset off the
-    -- scrollframe's own corner) -- print every Button-type sibling with its rect and text.
-    if QuestMapDetailsScrollFrame and QuestMapDetailsScrollFrame.GetParent then
-        local okP, container = pcall(QuestMapDetailsScrollFrame.GetParent, QuestMapDetailsScrollFrame)
-        if okP and container and container.GetChildren then
-            out[#out + 1] = "QuestMapDetailsScrollFrame siblings (parent=" ..
-                tostring(container.GetName and container:GetName()) .. "):"
-            for _, child in ipairs({ container:GetChildren() }) do
-                local okType, childType = pcall(child.GetObjectType, child)
-                if okType and childType == "Button" then
-                    local okShown, shown = pcall(child.IsShown, child)
-                    local text = child.GetText and select(2, pcall(child.GetText, child))
-                    local rect = ""
-                    if okShown and shown then
-                        local okRect, l, b, w, h = pcall(child.GetRect, child)
-                        if okRect and l then rect = (" rect=%.0f,%.0f %.0fx%.0f"):format(l, b, w, h) end
+    -- The immediate-parent sibling walk didn't find the visible "Back" button (only
+    -- Abandon/Share/Untrack turned up), so it must live at a different level of the tree.
+    -- Two more targeted attempts instead of guessing pixels again:
+    -- (1) walk up several ancestor levels from QuestMapDetailsScrollFrame, listing every
+    --     Button child at each level with its rect, so we can see exactly which container
+    --     actually holds "Back";
+    -- (2) a global recursive search under WorldMapFrame for any Button whose text is "Back",
+    --     printing its full parent chain.
+    if QuestMapDetailsScrollFrame then
+        local node = QuestMapDetailsScrollFrame
+        for level = 1, 4 do
+            local okP, parent = pcall(node.GetParent, node)
+            if not (okP and parent) then break end
+            local pname = parent.GetName and parent:GetName()
+            out[#out + 1] = ("ancestor level %d: %s [%s]"):format(
+                level, tostring(pname), select(2, pcall(parent.GetObjectType, parent)))
+            if parent.GetChildren then
+                for _, child in ipairs({ parent:GetChildren() }) do
+                    local okType, childType = pcall(child.GetObjectType, child)
+                    if okType and childType == "Button" then
+                        local okShown, shown = pcall(child.IsShown, child)
+                        local text = child.GetText and select(2, pcall(child.GetText, child))
+                        local rect = ""
+                        if okShown and shown then
+                            local okRect, l, b, w, h = pcall(child.GetRect, child)
+                            if okRect and l then rect = (" rect=%.0f,%.0f %.0fx%.0f"):format(l, b, w, h) end
+                        end
+                        out[#out + 1] = ("  %s [Button] shown=%s text=%s%s"):format(
+                            child.GetName and child:GetName() or "<anon>",
+                            okShown and tostring(shown) or "?", tostring(text), rect)
                     end
-                    out[#out + 1] = ("  %s [%s] shown=%s text=%s%s"):format(
-                        child.GetName and child:GetName() or "<anon>", childType,
-                        okShown and tostring(shown) or "?", tostring(text), rect)
+                end
+            end
+            node = parent
+        end
+    end
+    if WorldMapFrame then
+        local function findBack(obj, depth, chain)
+            if depth > 10 then return end
+            if obj.GetChildren then
+                for _, child in ipairs({ obj:GetChildren() }) do
+                    local okType, childType = pcall(child.GetObjectType, child)
+                    if okType and childType == "Button" then
+                        local text = child.GetText and select(2, pcall(child.GetText, child))
+                        if text == "Back" then
+                            local okShown, shown = pcall(child.IsShown, child)
+                            local rect = ""
+                            if okShown and shown then
+                                local okRect, l, b, w, h = pcall(child.GetRect, child)
+                                if okRect and l then rect = (" rect=%.0f,%.0f %.0fx%.0f"):format(l, b, w, h) end
+                            end
+                            out[#out + 1] = ("FOUND Back button: %s shown=%s%s chain=%s"):format(
+                                child.GetName or "<anon>", okShown and tostring(shown) or "?", rect, chain)
+                        end
+                    end
+                    findBack(child, depth + 1, chain .. "/" .. (child.GetName and child:GetName() or "<anon>"))
                 end
             end
         end
+        findBack(WorldMapFrame, 0, "WorldMapFrame")
     end
     -- Deep walk only for ones actually shown right now, to keep the dump a manageable size.
     for _, name in ipairs(roots) do

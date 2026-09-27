@@ -60,6 +60,14 @@ local detailScope = PF.NewPreviewScope()
 local trackerScope = PF.NewPreviewScope()
 local listScope = PF.NewPreviewScope()
 
+-- Forward-declared: translateObjectiveLine/completionLineText are defined further down (next to
+-- the tracker code they were written for) but Apply() needs them too, for the quest-detail
+-- view's own per-objective counter lines (QuestInfoObjective1, 2, ... under
+-- QuestInfoObjectivesFrame) -- previously only the *paragraph* (QuestInfoObjectivesText) was
+-- translated here, so an item/creature name embedded in "3/4 Vicious Night Web Spider Venom"
+-- stayed English even though the equivalent tracker line correctly translated it.
+local translateObjectiveLine, completionLineText
+
 local function Apply()
     if not PF:IsEnabled("Quests") then return end
     local id = CurrentQuestID()
@@ -73,6 +81,16 @@ local function Apply()
         detailScope.ApplyText(QuestInfoTitleHeader, PF.Expand(q[TITLE]), "title")
         detailScope.ApplyText(QuestInfoObjectivesText, PF.Expand(q[OBJECTIVES]), "body")
         detailScope.ApplyText(QuestInfoDescriptionText, PF.Expand(q[DESCRIPTION]), "body")
+        if QuestInfoObjectivesFrame and QuestInfoObjectivesFrame.GetChildren then
+            for _, obj in ipairs({ QuestInfoObjectivesFrame:GetChildren() }) do
+                local fs = obj.GetText and obj or (obj.Text)
+                local text = fs and fs.GetText and fs:GetText()
+                if text then
+                    local pl = translateObjectiveLine(text) or completionLineText(text, q)
+                    if pl then detailScope.ApplyText(fs, pl, "body") end
+                end
+            end
+        end
         if shown(QuestFrameRewardPanel) then
             detailScope.ApplyText(QuestInfoRewardText, PF.Expand(q[COMPLETION]), "body")
         end
@@ -161,7 +179,7 @@ end
 -- translation for just leaves the line as-is.
 local OBJ_SUFFIXES = { " slain", " killed", " collected", " looted", " used", " completed" }
 -- Wrapped in pcall (see titlePrefix above): guards against "secret value" protected strings.
-local function translateObjectiveLine(text)
+function translateObjectiveLine(text)
     local ok, result = pcall(function()
         if not text then return nil end
         local counter, rest = text:match("^(%d+/%d+%s+)(.*)$")
@@ -178,6 +196,23 @@ local function translateObjectiveLine(text)
         local pl = (text2 and text2.Items and text2.Items[PF.Hash(rest)])
             or (text2 and text2.Creatures and text2.Creatures[PF.Hash(rest)])
         if pl then return counter .. pl .. suffix end
+    end)
+    return ok and result or nil
+end
+
+-- The tracker's "QuestComplete" line and the quest-map list's completion bullet both show either
+-- the generic GlobalStrings "Ready for turn-in" text or a per-quest custom completion flavor
+-- line -- there's no counter to strip (unlike translateObjectiveLine's lines), so try an exact
+-- hash match against the UI text table first (catches the generic string, translated once via
+-- PF.Text.UI), then fall back to this quest's own COMPLETION field for the custom-flavor case.
+-- Wrapped in pcall like translateObjectiveLine (secret-value protection).
+function completionLineText(text, q)
+    local ok, result = pcall(function()
+        if not text then return nil end
+        local text2 = PF.Text
+        local pl = text2 and text2.UI and text2.UI[PF.Hash(text)]
+        if pl then return pl end
+        if q and q[COMPLETION] and q[COMPLETION] ~= "" then return PF.Expand(q[COMPLETION]) end
     end)
     return ok and result or nil
 end
@@ -200,7 +235,11 @@ local function ApplyTracker()
             end
             for _, line in ipairs({ block:GetChildren() }) do
                 if line.objectiveKey == "QuestComplete" and line.Text then
-                    setIfChanged(line.Text, PF.Expand(q[OBJECTIVES]), "body", block)
+                    -- Was PF.Expand(q[OBJECTIVES]) -- wrong field: that's the objectives
+                    -- *paragraph*, not the "Ready for turn-in"/completion line this widget
+                    -- actually shows, so it silently never matched and stayed English.
+                    local pl = completionLineText(line.Text:GetText(), q)
+                    if pl then setIfChanged(line.Text, pl, "body", block) end
                 elseif type(line.objectiveKey) == "number" and line.Text then
                     local pl = translateObjectiveLine(line.Text:GetText())
                     if pl then setIfChanged(line.Text, pl, "body", block) end
@@ -241,7 +280,13 @@ local function ApplyQuestMapList()
     if sf.objectiveFramePool then
         for line in sf.objectiveFramePool:EnumerateActive() do
             if line.Text then
-                local pl = translateObjectiveLine(line.Text:GetText())
+                local text = line.Text:GetText()
+                local id = line.questID
+                local q = id and PF.Quests and PF.Quests[id]
+                -- translateObjectiveLine handles "N/M name" bullets; completionLineText covers
+                -- the "Ready for turn-in"/completion bullet shown once a quest's objectives are
+                -- all done (same generic-string gap as the tracker's QuestComplete branch above).
+                local pl = translateObjectiveLine(text) or completionLineText(text, q)
                 if pl then
                     listScope.ApplyText(line.Text, pl, "body")
                     changed = true
