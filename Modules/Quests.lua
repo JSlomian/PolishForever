@@ -261,7 +261,20 @@ local function ApplyTracker()
                 local prefix = titlePrefix(current)
                 setIfChanged(header, prefix .. PF.Expand(q[TITLE]), "title", block)
             end
-            for _, line in ipairs({ block:GetChildren() }) do
+            local children = { block:GetChildren() }
+            -- Narrative single-objective quests (e.g. "Return Gunther's Spellbook to him, on
+            -- the island of Gunther's Retreat.") have no "N/M " counter at all, so
+            -- translateObjectiveLine never matches -- confirmed via screenshot: title
+            -- translated, this one flavor-text line under it left in English. Same gap already
+            -- fixed for the quest-map list widget's q[OBJECTIVES] fallback below; only safe to
+            -- reuse here when the block has exactly one numeric-key line (a real multi-objective
+            -- quest has one line per objective, and blindly stamping the same summary sentence
+            -- over all of them would be the same kind of regression already reverted elsewhere).
+            local numericCount = 0
+            for _, line in ipairs(children) do
+                if type(line.objectiveKey) == "number" then numericCount = numericCount + 1 end
+            end
+            for _, line in ipairs(children) do
                 if line.objectiveKey == "QuestComplete" and line.Text then
                     -- Was PF.Expand(q[OBJECTIVES]) -- wrong field: that's the objectives
                     -- *paragraph*, not the "Ready for turn-in"/completion line this widget
@@ -269,7 +282,9 @@ local function ApplyTracker()
                     local pl = completionLineText(line.Text:GetText())
                     if pl then setIfChanged(line.Text, pl, "body", block) end
                 elseif type(line.objectiveKey) == "number" and line.Text then
-                    local pl = translateObjectiveLine(line.Text:GetText())
+                    local text = line.Text:GetText()
+                    local pl = translateObjectiveLine(text) or completionLineText(text)
+                        or (numericCount == 1 and q[OBJECTIVES] ~= "" and PF.Expand(q[OBJECTIVES]))
                     if pl then setIfChanged(line.Text, pl, "body", block) end
                 end
             end
