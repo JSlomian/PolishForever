@@ -295,14 +295,6 @@ function PF.CreatePreviewControls(parent, point, x, y, reportFn)
     updateLabel()
     previewWatchers[updateLabel] = true
     toggle:SetScript("OnClick", function() PF.SetPreviewEnglish(not PF.previewEnglish) end)
-    toggle:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:SetText("PolishForever")
-        GameTooltip:AddLine("Click to preview " .. (PF.previewEnglish and "Polish" or "original English") ..
-            " (not saved, just for this window).", 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    toggle:SetScript("OnLeave", GameTooltip_Hide)
 
     if reportFn then
         local report = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
