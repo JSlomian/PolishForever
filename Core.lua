@@ -122,6 +122,55 @@ function PF.Expand(msg)
     return msg
 end
 
+-- Translate a GameTooltip-family frame's lines in place by hashing each line's current text
+-- against `table` (a PF.Text.<Group> table). Lines whose text isn't an exact match (most
+-- commonly a spell/item description whose numbers Blizzard has already substituted at render
+-- time, when our stored text still carries the raw $s1-style token) simply don't hash-match
+-- and are left in English -- no separate filtering needed, the lookup is safe by construction.
+function PF.TranslateTooltipLines(tooltip, table)
+    if not (tooltip and table) then return end
+    local name = tooltip:GetName()
+    if not name then return end
+    for i = 1, tooltip:NumLines() do
+        local fs = _G[name .. "TextLeft" .. i]
+        local text = fs and fs:GetText()
+        local pl = text and table[PF.Hash(text)]
+        if pl then PF.SetText(fs, pl, i == 1 and "title" or "body") end
+    end
+end
+
+-- Recursively walk a frame's regions/children translating any FontString whose current text
+-- hash-matches `table` (a PF.Text.<Group> table). For UI panels (skill/recipe lists, ...) that
+-- show plain labels rather than tooltips, where the exact button/sub-frame naming can differ
+-- between client versions -- bounded depth keeps this cheap and safe to call on every list
+-- refresh, same as PF.TranslateTooltipLines is safe to call on every tooltip.
+local WALK_MAX_DEPTH = 6
+function PF.TranslateFontStrings(root, table, depth)
+    if not (root and table) then return end
+    depth = depth or 0
+    if depth > WALK_MAX_DEPTH then return end
+    local ok, objType = pcall(root.GetObjectType, root)
+    if not ok then return end
+    if objType == "FontString" then
+        local text = root:GetText()
+        local pl = text and table[PF.Hash(text)]
+        if pl then PF.SetText(root, pl, "body") end
+        return
+    end
+    if root.GetRegions then
+        for _, region in ipairs({ root:GetRegions() }) do
+            if region.GetObjectType and region:GetObjectType() == "FontString" then
+                PF.TranslateFontStrings(region, table, depth + 1)
+            end
+        end
+    end
+    if root.GetChildren then
+        for _, child in ipairs({ root:GetChildren() }) do
+            if child:IsShown() then PF.TranslateFontStrings(child, table, depth + 1) end
+        end
+    end
+end
+
 -- Set text on a FontString using a Polish-capable font at the original size. The stock enUS fonts
 -- lack some Polish glyphs, which is why the addon ships its own.
 function PF.SetText(fs, text, kind)

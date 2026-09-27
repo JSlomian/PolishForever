@@ -1,9 +1,27 @@
 local _, PF = ...
 
--- Stub: Spell and ability names, descriptions and tooltips. Registered so it has a toggle and a place to hook into; it changes nothing yet.
-PF:RegisterModule("Abilities", {
+local Abilities = {
     desc = "Spell and ability names, descriptions and tooltips",
-    implemented = false,
-    OnEnable = function() end,
-    OnDisable = function() end,
-})
+    implemented = true,
+}
+
+-- Spellbook, action bars and aura tooltips all render spells through GameTooltip's
+-- OnTooltipSetSpell (SetSpellByID / SetSpellBookItem / SetUnitAura all funnel here) -- one hook
+-- covers all of them. PF.Text.Spells also carries full description bodies with unresolved
+-- $s1-style value tokens; those simply won't hash-match a live tooltip's already-substituted
+-- text (see PF.TranslateTooltipLines), so only names get translated -- no extra filtering needed.
+local hooked = false
+
+function Abilities:OnEnable()
+    if hooked then return end
+    hooked = true
+    if GameTooltip and GameTooltip.HookScript then
+        GameTooltip:HookScript("OnTooltipSetSpell", function(self)
+            if PF:IsEnabled("Abilities") then PF.TranslateTooltipLines(self, PF.Text.Spells) end
+        end)
+    end
+end
+
+function Abilities:OnDisable() end
+
+PF:RegisterModule("Abilities", Abilities)
