@@ -118,20 +118,6 @@ end
 -- case the NPC quest-accept dialogue (a separate, more classic-style code path per the same
 -- dump) uses them directly -- harmless if inactive. Guarded/pcall-wrapped per frame so a wrong
 -- assumption about one doesn't stop the others from being created.
--- The NPC talk-to dialogue (QuestInfoFrame/QuestFrameProgressPanel) has its own bottom button
--- row (Continue/Cancel for a turn-in, Accept/Decline for an offer) whose position/label varies
--- by quest -- a fixed BOTTOMRIGHT offset put PL half outside the parchment and Report hidden
--- behind Cancel (confirmed via screenshot). Find whichever of these buttons is actually present
--- and anchor above it instead, same "found, not guessed" approach as the Back-button anchor
--- below.
-local BOTTOM_BUTTON_LABELS = { "Cancel", "Decline", "Continue", "Accept", "Complete Quest" }
-local function findBottomButton(root)
-    for _, label in ipairs(BOTTOM_BUTTON_LABELS) do
-        local b = PF.FindButtonByText(root, label, 6)
-        if b then return b end
-    end
-end
-
 local controlsInstalled = false
 local function installControls()
     if controlsInstalled then return end
@@ -148,17 +134,16 @@ local function installControls()
         pcall(detailScope.CreateControls, QuestMapDetailsScrollFrame, "TOPRIGHT", -8, -6,
             reportCurrentQuest, reportAnchor)
     end
+    -- PL/EN pinned to the parchment's own top-right corner, Report stacked directly above it
+    -- (not to the side -- the NPC dialogue's parchment is narrower than the map panel's, so a
+    -- side-by-side Report ran into the scrollbar; confirmed via screenshot).
     if QuestInfoFrame then
-        local btn = findBottomButton(_G.QuestFrame or QuestInfoFrame)
-        local toggleAnchor = btn and { btn, "BOTTOMRIGHT", "TOPRIGHT", 0, 6 }
-        pcall(detailScope.CreateControls, QuestInfoFrame, "BOTTOMRIGHT", -8, 8, reportCurrentQuest,
-            nil, toggleAnchor)
+        pcall(detailScope.CreateControls, QuestInfoFrame, "TOPRIGHT", -8, -6, reportCurrentQuest,
+            nil, nil, "above")
     end
     if QuestFrameProgressPanel then
-        local btn = findBottomButton(_G.QuestFrame or QuestFrameProgressPanel)
-        local toggleAnchor = btn and { btn, "BOTTOMRIGHT", "TOPRIGHT", 0, 6 }
-        pcall(detailScope.CreateControls, QuestFrameProgressPanel, "BOTTOMRIGHT", -8, 8, reportCurrentQuest,
-            nil, toggleAnchor)
+        pcall(detailScope.CreateControls, QuestFrameProgressPanel, "TOPRIGHT", -8, -6, reportCurrentQuest,
+            nil, nil, "above")
     end
 end
 

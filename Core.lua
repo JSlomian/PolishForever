@@ -340,7 +340,9 @@ function PF.NewPreviewScope()
     -- frame's own bottom button row (Continue/Cancel/Accept/...) moves depending on which quest
     -- is shown (confirmed via screenshot: a fixed BOTTOMRIGHT offset put PL half outside the
     -- parchment and Report hidden behind the Cancel button on the NPC turn-in dialogue).
-    function scope.CreateControls(parent, point, x, y, reportFn, reportAnchor, toggleAnchor)
+    -- `reportPlacement`, if "above", stacks Report directly above the toggle instead of to its
+    -- left (used on narrow parchment where left of the toggle runs into the scrollbar).
+    function scope.CreateControls(parent, point, x, y, reportFn, reportAnchor, toggleAnchor, reportPlacement)
         if not parent then return end
         local toggle = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
         toggle:SetSize(36, 20)
@@ -359,6 +361,8 @@ function PF.NewPreviewScope()
             report:SetSize(56, 20)
             if reportAnchor then
                 report:SetPoint(reportAnchor[2], reportAnchor[1], reportAnchor[3], reportAnchor[4], reportAnchor[5])
+            elseif reportPlacement == "above" then
+                report:SetPoint("BOTTOMRIGHT", toggle, "TOPRIGHT", 0, 4)
             else
                 -- Grows inward (left of the toggle), not outward past the parent's right edge --
                 -- anchoring it to toggle's RIGHT side pushed it past the frame's own boundary and
