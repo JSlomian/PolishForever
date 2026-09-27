@@ -88,6 +88,39 @@ local function translateStaticLabel(fs, kind)
     return ok
 end
 
+-- Required/reward item buttons (QuestProgressItem1..6, QuestInfoRewardsFrame's reward buttons)
+-- show the item's own name as a plain FontString on the button, separate from its (already
+-- correctly translated, via Modules/Items.lua's GameTooltip hook) tooltip -- confirmed via
+-- screenshot: tooltip said "Klejnot Eteru", the button under it still said "Nether Gem". Recurse
+-- through whatever's currently shown looking for FontStrings that hash-match PF.Text.Items,
+-- same bounded-depth walk PF.TranslateFontStrings uses elsewhere -- but going through
+-- detailScope.ApplyText (not PF.SetText) so these buttons respect this window's own PL/EN preview
+-- toggle like everything else in it, instead of always showing Polish regardless of that toggle.
+local function translateItemButtonNames(root, depth)
+    if not root then return end
+    depth = depth or 0
+    if depth > 6 then return end
+    local okType, objType = pcall(root.GetObjectType, root)
+    if okType and objType == "FontString" then
+        local text = root.GetText and root:GetText()
+        local pl = text and PF.Text and PF.Text.Items and PF.Text.Items[PF.Hash(text)]
+        if pl then detailScope.ApplyText(root, pl, "body") end
+        return
+    end
+    if root.GetRegions then
+        for _, region in ipairs({ root:GetRegions() }) do
+            local okR, rType = pcall(region.GetObjectType, region)
+            if okR and rType == "FontString" then translateItemButtonNames(region, depth + 1) end
+        end
+    end
+    if root.GetChildren then
+        for _, child in ipairs({ root:GetChildren() }) do
+            local okShown, isShown = pcall(child.IsShown, child)
+            if okShown and isShown then translateItemButtonNames(child, depth + 1) end
+        end
+    end
+end
+
 local function Apply()
     if not PF:IsEnabled("Quests") then return end
     local id = CurrentQuestID()
@@ -99,6 +132,7 @@ local function Apply()
         detailScope.ApplyText(QuestProgressText, PF.Expand(q[PROGRESS]), "body")
         translateStaticLabel(QuestProgressRequiredItemsText, "title") -- QuestTitleFont
         translateStaticLabel(QuestProgressRequiredMoneyText, "body")  -- QuestFontNormalSmall
+        translateItemButtonNames(QuestProgressScrollChildFrame)
     else
         detailScope.ApplyText(QuestInfoTitleHeader, PF.Expand(q[TITLE]), "title")
         detailScope.ApplyText(QuestInfoObjectivesText, PF.Expand(q[OBJECTIVES]), "body")
@@ -112,6 +146,10 @@ local function Apply()
             if QuestInfoRewardsFrame.XPFrame then
                 translateStaticLabel(QuestInfoRewardsFrame.XPFrame.ReceiveText, "body") -- "Experience:" (QuestFont)
             end
+            translateItemButtonNames(QuestInfoRewardsFrame)
+        end
+        if MapQuestInfoRewardsFrame and shown(MapQuestInfoRewardsFrame) then
+            translateItemButtonNames(MapQuestInfoRewardsFrame) -- modern map-log's own reward frame variant
         end
         -- QuestInfoObjective1/2/... (confirmed via /pl dump) are FontString *regions* of
         -- QuestInfoObjectivesFrame, not child frames -- GetChildren() returns none of them
