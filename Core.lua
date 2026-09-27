@@ -335,11 +335,20 @@ function PF.NewPreviewScope()
     -- `reportAnchor`, if given, is {frame, point, relativePoint, x, y} -- anchors Report to that
     -- frame instead of relative to the toggle (see PF.FindButtonByText: used to line Report up
     -- with Blizzard's own "Back" button rather than a guessed pixel offset).
-    function scope.CreateControls(parent, point, x, y, reportFn, reportAnchor)
+    -- `toggleAnchor`, if given, is the same {frame, point, relativePoint, x, y} shape but for the
+    -- toggle button itself -- used when a fixed (point, x, y) offset isn't safe because the
+    -- frame's own bottom button row (Continue/Cancel/Accept/...) moves depending on which quest
+    -- is shown (confirmed via screenshot: a fixed BOTTOMRIGHT offset put PL half outside the
+    -- parchment and Report hidden behind the Cancel button on the NPC turn-in dialogue).
+    function scope.CreateControls(parent, point, x, y, reportFn, reportAnchor, toggleAnchor)
         if not parent then return end
         local toggle = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
         toggle:SetSize(36, 20)
-        toggle:SetPoint(point, parent, point, x, y)
+        if toggleAnchor then
+            toggle:SetPoint(toggleAnchor[2], toggleAnchor[1], toggleAnchor[3], toggleAnchor[4], toggleAnchor[5])
+        else
+            toggle:SetPoint(point, parent, point, x, y)
+        end
         local function updateLabel() toggle:SetText(scope.previewEnglish and "EN" or "PL") end
         updateLabel()
         watchers[updateLabel] = true
