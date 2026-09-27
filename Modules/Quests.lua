@@ -12,6 +12,18 @@ local function shown(frame)
     return frame and frame:IsShown()
 end
 
+-- Tracker/quest-map title lines are often prefixed with a color code before the "[level] "
+-- bracket (confirmed via /pl dump: |cffffd100[13] Bandarion Keep|r) -- the old plain
+-- "^(%[...)" pattern only matched a bare bracket at the very start, so it silently failed
+-- (empty prefix) whenever a color code came first, dropping both the color and the level
+-- number from the translated line. Capture an optional leading color code too.
+local function titlePrefix(text)
+    if not text then return "" end
+    local color = text:match("^(|c%x%x%x%x%x%x%x%x)") or ""
+    local bracket = text:sub(#color + 1):match("^(%[[^%]]*%]%s*)") or ""
+    return color .. bracket
+end
+
 -- The quest currently on screen: the selected quest-log entry, or the NPC dialogue quest.
 local function CurrentQuestID()
     if QuestInfoFrame and QuestInfoFrame.questLog then
@@ -147,8 +159,8 @@ local function ApplyTracker()
             local header = block.HeaderText
             local current = header and header:GetText()
             if current then
-                local prefix = current:match("^(%[[^%]]*%]%s*)") or ""
-                if setIfChanged(header, prefix .. PF.Expand(q[TITLE]), "body", block) ~= 0 then grew = true end
+                local prefix = titlePrefix(current)
+                if setIfChanged(header, prefix .. PF.Expand(q[TITLE]), "title", block) ~= 0 then grew = true end
             end
             for _, line in ipairs({ block:GetChildren() }) do
                 if line.objectiveKey == "QuestComplete" and line.Text then
@@ -196,8 +208,8 @@ local function ApplyQuestMapList()
             local q = id and PF.Quests and PF.Quests[id]
             if q and title.Text then
                 local current = title.Text:GetText()
-                local prefix = current and current:match("^(%[[^%]]*%]%s*)") or ""
-                PF.ApplyText(title.Text, prefix .. PF.Expand(q[TITLE]), "body")
+                local prefix = titlePrefix(current)
+                PF.ApplyText(title.Text, prefix .. PF.Expand(q[TITLE]), "title")
             end
         end
     end

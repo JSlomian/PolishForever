@@ -208,6 +208,9 @@ end
 
 -- Set text on a FontString using a Polish-capable font at the original size. The stock enUS fonts
 -- lack some Polish glyphs, which is why the addon ships its own.
+-- "title" text gets a couple points larger, on top of the Cinzel-Bold face already used for that
+-- kind, so it actually reads as a heading rather than same-size-but-different-font body text.
+local KIND_SIZE_BOOST = { title = 2 }
 function PF.SetText(fs, text, kind)
     if not fs or not text or text == "" then return false end
     if not fs.pfFont then
@@ -215,7 +218,8 @@ function PF.SetText(fs, text, kind)
         fs.pfFont = { font, size, flags }
     end
     local orig = fs.pfFont
-    if not fs:SetFont(PF.Fonts[kind or "body"], orig[2] or 12, orig[3]) then
+    local size = (orig[2] or 12) + (KIND_SIZE_BOOST[kind] or 0)
+    if not fs:SetFont(PF.Fonts[kind or "body"], size, orig[3]) then
         fs:SetFont(orig[1], orig[2] or 12, orig[3]) -- shipped font missing: keep the stock one
     end
     fs:SetText(text)
