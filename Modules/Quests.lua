@@ -104,6 +104,33 @@ local function setIfChanged(fs, text, kind, block)
     return 0
 end
 
+-- Objective progress lines ("0/8 Bleeding Horror slain", "0/1 Spells of Shadow") are built by
+-- the client from an item or creature name plus an optional trailing verb -- confirmed via
+-- /pl dump against QuestObjectiveTracker: each objectiveKey=N line is its own FontString holding
+-- exactly this text, separate from the flavor-text objectives paragraph. Strip the "N/M " counter
+-- and any trailing " <verb>", hash-match the remaining name against Items (works today) and
+-- Creatures (once that group exists -- PF.Text.Creatures may simply be nil for now, harmless),
+-- and rebuild the line. Same hash-mismatch-is-safe principle as tooltips: a name we don't have a
+-- translation for just leaves the line as-is.
+local OBJ_SUFFIXES = { " slain", " killed", " collected", " looted", " used", " completed" }
+local function translateObjectiveLine(text)
+    if not text then return nil end
+    local counter, rest = text:match("^(%d+/%d+%s+)(.*)$")
+    if not counter then return nil end
+    local suffix = ""
+    for _, s in ipairs(OBJ_SUFFIXES) do
+        if rest:sub(-#s) == s then
+            suffix = s
+            rest = rest:sub(1, -#s - 1)
+            break
+        end
+    end
+    local text2 = PF.Text
+    local pl = (text2 and text2.Items and text2.Items[PF.Hash(rest)])
+        or (text2 and text2.Creatures and text2.Creatures[PF.Hash(rest)])
+    if pl then return counter .. pl .. suffix end
+end
+
 local applyingTracker = false
 
 local function ApplyTracker()
@@ -126,6 +153,9 @@ local function ApplyTracker()
             for _, line in ipairs({ block:GetChildren() }) do
                 if line.objectiveKey == "QuestComplete" and line.Text then
                     if setIfChanged(line.Text, PF.Expand(q[OBJECTIVES]), "body", block) ~= 0 then grew = true end
+                elseif type(line.objectiveKey) == "number" and line.Text then
+                    local pl = translateObjectiveLine(line.Text:GetText())
+                    if pl and setIfChanged(line.Text, pl, "body", block) ~= 0 then grew = true end
                 end
             end
             if block.SetHeight and type(block.height) == "number" then
