@@ -368,10 +368,16 @@ StaticPopupDialogs["POLISHFOREVER_REPORT"] = {
     button1 = CLOSE,
     hasEditBox = true,
     editBoxWidth = 350,
+    -- This client's StaticPopup is built from the newer Blizzard_StaticPopup_Game/GameDialog.xml
+    -- template (confirmed via the Lua error's own stack trace), not the classic StaticPopup.lua
+    -- one -- its edit box field is capitalized (self.EditBox), unlike the classic self.editBox
+    -- this addon originally assumed. Try both, and don't error if neither exists.
     OnShow = function(self)
-        self.editBox:SetText(self.data or "")
-        self.editBox:HighlightText()
-        self.editBox:SetFocus()
+        local box = self.EditBox or self.editBox
+        if not box then return end
+        box:SetText(self.data or "")
+        box:HighlightText()
+        box:SetFocus()
     end,
     EditBoxOnEnterPressed = function(self) self:GetParent():Hide() end,
     EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
