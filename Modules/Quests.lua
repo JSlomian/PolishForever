@@ -73,15 +73,21 @@ local function reportCurrentQuest()
     PF.ReportBug("quest", id, q and PF.Expand(q[TITLE]) or nil)
 end
 
--- Small PL/EN preview + Report buttons on whichever quest frame is actually shown. QuestInfoFrame
--- is shared by both the quest-log detail view and the NPC quest-accept dialogue (see
--- CurrentQuestID above), so one set of controls there covers both; QuestFrameProgressPanel (the
--- turn-in panel) is a separate frame and gets its own. Guarded/pcall-wrapped per frame so a wrong
--- assumption about one doesn't stop the other from being created.
+-- Small PL/EN preview + Report buttons on whichever quest frame is actually shown.
+-- Confirmed via /pl dump that in this client's map-embedded quest log, QuestInfoFrame itself
+-- always reports shown=false (its widgets -- QuestInfoTitleHeader etc. -- are reparented under
+-- an anonymous child of QuestMapDetailsScrollFrame instead, which IS reliably shown), so that's
+-- the real anchor target for that view. QuestInfoFrame/QuestFrameProgressPanel are kept too in
+-- case the NPC quest-accept dialogue (a separate, more classic-style code path per the same
+-- dump) uses them directly -- harmless if inactive. Guarded/pcall-wrapped per frame so a wrong
+-- assumption about one doesn't stop the others from being created.
 local controlsInstalled = false
 local function installControls()
     if controlsInstalled then return end
     controlsInstalled = true
+    if QuestMapDetailsScrollFrame then
+        pcall(PF.CreatePreviewControls, QuestMapDetailsScrollFrame, "TOPRIGHT", -6, -6, reportCurrentQuest)
+    end
     if QuestInfoFrame then
         pcall(PF.CreatePreviewControls, QuestInfoFrame, "BOTTOMRIGHT", -8, 8, reportCurrentQuest)
     end
