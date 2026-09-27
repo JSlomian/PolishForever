@@ -39,6 +39,14 @@ local function BuildPanel()
     sub:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
     sub:SetText("Choose which parts are shown in Polish. Changes apply the next time a window opens.")
 
+    -- Every top-level checkbox aligns its LEFT edge to `sub` (the subtitle), independent of
+    -- whatever `previous` is -- previously it inherited x=0 relative to `previous`'s BOTTOMLEFT,
+    -- which was correct when `previous` was another top-level check (same x already) but wrong
+    -- when `previous` was the last SUB-checkbox of the module above it (indented +14): the next
+    -- top-level module then inherited that same indent and visually looked like a sub-item of the
+    -- one before it (confirmed: "Menus" right after "Names"/Creatures, which has sub-checkboxes,
+    -- appeared indented like one of Names' own sub-options). Only the vertical (TOP) anchor
+    -- chains to `previous`; horizontal is always pinned back to the same baseline.
     local previous = sub
     panel.checks = {}
     panel.groupCheck = nil
@@ -48,7 +56,8 @@ local function BuildPanel()
             if not spellGroupPlaced then
                 spellGroupPlaced = true
                 local check = CreateFrame("CheckButton", "PolishForeverCheckSpells", panel, "UICheckButtonTemplate")
-                check:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", previous == sub and -2 or 0, previous == sub and -14 or -6)
+                check:SetPoint("TOP", previous, "BOTTOM", 0, previous == sub and -14 or -6)
+                check:SetPoint("LEFT", sub, "LEFT", -2, 0)
                 local label = _G[check:GetName() .. "Text"]
                 label:SetText("Spells" .. (groupImplemented() and "" or "  |cff888888(not implemented yet)|r"))
                 local desc = "Spell, talent, ability and skill/profession tooltips"
@@ -69,7 +78,8 @@ local function BuildPanel()
             local mod = PF.modules[name]
             local label_ = mod.label or name
             local check = CreateFrame("CheckButton", "PolishForeverCheck" .. name, panel, "UICheckButtonTemplate")
-            check:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", previous == sub and -2 or 0, previous == sub and -14 or -6)
+            check:SetPoint("TOP", previous, "BOTTOM", 0, previous == sub and -14 or -6)
+            check:SetPoint("LEFT", sub, "LEFT", -2, 0)
             local label = _G[check:GetName() .. "Text"]
             label:SetText(label_ .. (mod.implemented and "" or "  |cff888888(not implemented yet)|r"))
             check.tooltipText = mod.desc
@@ -108,6 +118,25 @@ local function BuildPanel()
             end
         end
     end
+
+    -- General feedback: the in-game Report button on quest windows is scoped to the quest on
+    -- screen, but there's nowhere to report a bad spell/item/UI-label translation noticed outside
+    -- that context (e.g. a wrong tooltip while browsing the spellbook). One general-purpose button
+    -- here, reusing the same issue template/popup, with no ID/part prefilled -- the reporter
+    -- describes what's wrong themselves.
+    local reportBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    reportBtn:SetSize(160, 22)
+    reportBtn:SetPoint("TOP", previous, "BOTTOM", 0, -16)
+    reportBtn:SetPoint("LEFT", sub, "LEFT", -2, 0)
+    reportBtn:SetText("Report an issue")
+    reportBtn:SetScript("OnClick", function() PF.ReportBug("general") end)
+    reportBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Report an issue")
+        GameTooltip:AddLine("Spell, item, UI label, or anything else not covered by a window's own Report button.", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    reportBtn:SetScript("OnLeave", GameTooltip_Hide)
 
     panel:SetScript("OnShow", function()
         for name, check in pairs(panel.checks) do
