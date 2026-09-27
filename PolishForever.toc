@@ -6,6 +6,7 @@
 ## X-License: MIT (code) / CC-BY-4.0 (translation data, see LICENSE)
 ## SavedVariables: PolishForeverDB
 ## X-Category: Localization
+## X-Curse-Project-ID: 1706401
 
 Core.lua
 Data\Declension.lua
