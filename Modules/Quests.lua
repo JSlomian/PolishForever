@@ -154,7 +154,9 @@ local function installControls()
             reportCurrentQuest, nil, nil, "above")
         if ok and toggle and titleText and scrollFrame then
             toggle:ClearAllPoints()
-            toggle:SetPoint("TOP", titleText, "TOP", 0, 0)
+            -- +14 nudges it up off the title's own line, into the empty chrome band above the
+            -- parchment (confirmed close via screenshot; this was the only remaining tweak).
+            toggle:SetPoint("TOP", titleText, "TOP", 0, 14)
             toggle:SetPoint("RIGHT", scrollFrame, "RIGHT", -4, 0)
         end
     end
