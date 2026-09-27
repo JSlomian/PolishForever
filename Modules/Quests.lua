@@ -160,9 +160,23 @@ local function installControls()
             toggle:SetPoint("RIGHT", scrollFrame, "RIGHT", -4, 0)
         end
     end
-    if QuestInfoFrame then
-        pinToTitle(QuestInfoFrame, QuestInfoTitleHeader, QuestDetailScrollFrame)
+    -- Accept dialogue (picking up a quest): per Blizzard's QuestInfo.lua (QuestInfo_Display),
+    -- QuestInfoFrame is NOT a real visible container -- it's just a declaration bag in the XML.
+    -- At runtime every one of its FontStrings (QuestInfoTitleHeader etc.) gets individually
+    -- SetParent()'d onto whatever real panel is showing (QuestFrameDetailPanel here); QuestInfoFrame
+    -- itself is never shown or positioned. Parenting our controls to it (as a prior attempt did)
+    -- put them on an inert, undisplayed frame -- they simply never appeared, which is why Report/PL
+    -- only ever showed up on the turn-in (Progress) panel. QuestFrameDetailPanel is the real
+    -- container, and (unlike QuestFrameProgressPanel) its XML explicitly overrides
+    -- QuestFramePanelTemplate's size back down to 338x496 -- same as QuestFrame -- so its own
+    -- TOPRIGHT already lines up with the real window; QuestDetailScrollFrame (real, same
+    -- QuestScrollFrameTemplate) is still the correct right-edge reference.
+    if QuestFrameDetailPanel then
+        pinToTitle(QuestFrameDetailPanel, QuestInfoTitleHeader, QuestDetailScrollFrame)
     end
+    -- Turn-in AND "still in progress" (not yet ready to complete) both show QuestFrameProgressPanel
+    -- -- same frame, just different text (QuestProgressText vs the required-items list) -- so this
+    -- one install already covers both.
     if QuestFrameProgressPanel then
         pinToTitle(QuestFrameProgressPanel, QuestProgressTitleText, QuestProgressScrollFrame)
     end
