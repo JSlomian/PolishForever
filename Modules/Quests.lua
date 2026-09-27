@@ -135,30 +135,34 @@ local function installControls()
             reportCurrentQuest, reportAnchor)
     end
     -- PL/EN pinned to the parchment's own top-right corner, at the same height as the quest
-    -- title, Report stacked directly above it (not to the side -- this parchment is narrower
-    -- than the map panel's, so a side-by-side Report ran into the scrollbar; confirmed via
-    -- screenshot). QuestInfoFrame/QuestFrameProgressPanel's own TOPRIGHT is NOT the parchment's
-    -- top -- it's the whole dialogue's frame rect, which extends up behind the title bar/NPC
-    -- portrait (confirmed via screenshot: the buttons floated above the "X" close button
-    -- entirely). Anchor vertically to the title FontString instead (known to sit right at the
-    -- parchment's actual top edge) and horizontally to the frame's own right edge (that part was
-    -- already correct) -- CreateControls returns the toggle frame so a second, combining SetPoint
-    -- can be layered on top of its initial one; Report's own anchor (relative to the toggle
-    -- frame, not a baked coordinate) follows automatically.
-    local function pinToTitle(parent, titleText)
+    -- title; Report stacked directly above it, in the empty chrome band between the NPC
+    -- name bar and the parchment. Pulled straight from Blizzard's own XML (Gethe/wow-ui-source,
+    -- Interface/AddOns/Blizzard_UIPanels_Game/Mainline/QuestFrame*.xml) instead of guessing pixel
+    -- offsets from a screenshot again (three guesses in a row were wrong):
+    --   * QuestFrame itself is 338x496 -- the real visible window.
+    --   * QuestFrameProgressPanel/QuestInfoFrame use QuestFramePanelTemplate, sized 384x512,
+    --     anchored TOPLEFT to QuestFrame at (0,0) -- i.e. it's actually BIGGER than the visible
+    --     window and shares its top-left corner, so its own RIGHT edge sits ~46px past
+    --     QuestFrame's real right edge. That's exactly why anchoring to the panel's own TOPRIGHT
+    --     put the buttons outside the frame, off in the background.
+    --   * QuestProgressScrollFrame/QuestDetailScrollFrame (both named globals, inherit
+    --     QuestScrollFrameTemplate) are the actual parchment content area: TOPLEFT of QuestFrame
+    --     +(5,-65), 300 wide -- their own RIGHT edge IS the parchment's real right edge (with the
+    --     scrollbar a few px further out). Anchor to that instead of the oversized panel.
+    local function pinToTitle(parent, titleText, scrollFrame)
         local ok, toggle = pcall(detailScope.CreateControls, parent, "TOPRIGHT", -8, -6,
             reportCurrentQuest, nil, nil, "above")
-        if ok and toggle and titleText then
+        if ok and toggle and titleText and scrollFrame then
             toggle:ClearAllPoints()
             toggle:SetPoint("TOP", titleText, "TOP", 0, 0)
-            toggle:SetPoint("RIGHT", parent, "RIGHT", -8, 0)
+            toggle:SetPoint("RIGHT", scrollFrame, "RIGHT", -4, 0)
         end
     end
     if QuestInfoFrame then
-        pinToTitle(QuestInfoFrame, QuestInfoTitleHeader)
+        pinToTitle(QuestInfoFrame, QuestInfoTitleHeader, QuestDetailScrollFrame)
     end
     if QuestFrameProgressPanel then
-        pinToTitle(QuestFrameProgressPanel, QuestProgressTitleText)
+        pinToTitle(QuestFrameProgressPanel, QuestProgressTitleText, QuestProgressScrollFrame)
     end
 end
 
