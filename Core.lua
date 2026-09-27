@@ -301,7 +301,11 @@ function PF.NewPreviewScope()
         if reportFn then
             local report = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
             report:SetSize(56, 20)
-            report:SetPoint("LEFT", toggle, "RIGHT", 4, 0)
+            -- Grows inward (left of the toggle), not outward past the parent's right edge --
+            -- anchoring it to toggle's RIGHT side pushed it past the frame's own boundary and
+            -- got it clipped by whatever sits beyond (scrollbar/border), since `toggle` itself
+            -- already sits right at that edge.
+            report:SetPoint("RIGHT", toggle, "LEFT", -4, 0)
             report:SetText("Report")
             report:SetScript("OnClick", reportFn)
             report:SetScript("OnEnter", function(self)

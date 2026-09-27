@@ -70,8 +70,38 @@ function PF:Dump()
         local okShown, shown = pcall(obj.IsShown, obj)
         local parent = obj.GetParent and select(2, pcall(obj.GetParent, obj))
         local pname = parent and parent.GetName and parent:GetName()
-        out[#out + 1] = ("%s :: [%s] shown=%s parent=%s"):format(
-            name, ok and objType or "?", okShown and tostring(shown) or "?", tostring(pname))
+        local rect = ""
+        if okShown and shown then
+            local okRect, l, b, w, h = pcall(obj.GetRect, obj)
+            if okRect and l then rect = (" rect=%.0f,%.0f %.0fx%.0f"):format(l, b, w, h) end
+        end
+        out[#out + 1] = ("%s :: [%s] shown=%s parent=%s%s"):format(
+            name, ok and objType or "?", okShown and tostring(shown) or "?", tostring(pname), rect)
+    end
+    -- Sibling buttons of QuestMapDetailsScrollFrame (looking for the "Back" button specifically,
+    -- to anchor the PL/Report controls to it instead of guessing a pixel offset off the
+    -- scrollframe's own corner) -- print every Button-type sibling with its rect and text.
+    if QuestMapDetailsScrollFrame and QuestMapDetailsScrollFrame.GetParent then
+        local okP, container = pcall(QuestMapDetailsScrollFrame.GetParent, QuestMapDetailsScrollFrame)
+        if okP and container and container.GetChildren then
+            out[#out + 1] = "QuestMapDetailsScrollFrame siblings (parent=" ..
+                tostring(container.GetName and container:GetName()) .. "):"
+            for _, child in ipairs({ container:GetChildren() }) do
+                local okType, childType = pcall(child.GetObjectType, child)
+                if okType and childType == "Button" then
+                    local okShown, shown = pcall(child.IsShown, child)
+                    local text = child.GetText and select(2, pcall(child.GetText, child))
+                    local rect = ""
+                    if okShown and shown then
+                        local okRect, l, b, w, h = pcall(child.GetRect, child)
+                        if okRect and l then rect = (" rect=%.0f,%.0f %.0fx%.0f"):format(l, b, w, h) end
+                    end
+                    out[#out + 1] = ("  %s [%s] shown=%s text=%s%s"):format(
+                        child.GetName and child:GetName() or "<anon>", childType,
+                        okShown and tostring(shown) or "?", tostring(text), rect)
+                end
+            end
+        end
     end
     -- Deep walk only for ones actually shown right now, to keep the dump a manageable size.
     for _, name in ipairs(roots) do
