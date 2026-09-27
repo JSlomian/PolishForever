@@ -436,12 +436,64 @@ function PF.ReportBug(kind, id, current, extra)
     StaticPopup_Show("POLISHFOREVER_REPORT", nil, nil, url)
 end
 
+-- Keybind: report whatever tooltip is currently under the mouse (spell/item/generic UI label),
+-- for things noticed outside a quest window (which has its own Report button) or the config
+-- panel's general one (which has no specific target at all). WoW auto-adds a bindable action for
+-- any global function that has a matching BINDING_NAME_<funcname> global string set -- no
+-- Bindings.xml needed. Shows up under Key Bindings -> AddOns -> PolishForever; unbound by default.
+BINDING_HEADER_POLISHFOREVER = "PolishForever"
+BINDING_NAME_PolishForeverReportHover = "Report the spell/item/tooltip currently under the mouse"
+
+function PolishForeverReportHover()
+    local ok, err = pcall(function()
+        if not (GameTooltip and GameTooltip:IsShown()) then
+            PF:Print("Hover over a spell, item, or other tooltip first, then use this keybind.")
+            return
+        end
+        -- GetItem/GetSpell are the tooltip's own accessors for what it's currently displaying --
+        -- more reliable than re-deriving it from the owner widget, and gives a real ID (not just
+        -- the displayed name) when one exists.
+        local kind, id, name
+        local itemName, itemLink = GameTooltip:GetItem()
+        if itemLink then
+            kind, name = "item", itemName
+            id = tonumber(itemLink:match("item:(%d+)"))
+        else
+            local spellName, spellID = GameTooltip:GetSpell()
+            if spellName then kind, id, name = "spell", spellID, spellName end
+        end
+        if not kind then
+            -- Generic tooltip (a UI label, not a spell/item) -- no reliable ID, so at least
+            -- capture its first line as context for the report.
+            local fs = _G[(GameTooltip:GetName() or "GameTooltip") .. "TextLeft1"]
+            kind, name = "ui", fs and fs:GetText()
+        end
+        PF.ReportBug(kind, id, nil, name)
+    end)
+    if not ok then PF:Print("Report hover failed: " .. tostring(err)) end
+end
+
+-- Default the report-hover keybind to F7, once ever -- only if F7 isn't already bound to
+-- something else (never clobber an existing binding) and only on first login (a `boundF7` flag,
+-- not "is F7 still free", so a player who deliberately unbinds/rebinds it later doesn't get it
+-- silently forced back on their next login).
+local function SetDefaultBinding()
+    if PolishForeverDB.boundF7 then return end
+    PolishForeverDB.boundF7 = true
+    local current = GetBindingAction and GetBindingAction("F7")
+    if not current or current == "" then
+        SetBinding("F7", "PolishForeverReportHover")
+        SaveBindings(GetCurrentBindingSet())
+    end
+end
+
 -- Lifecycle ----------------------------------------------------------------------------------
 
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_LOGIN")
 frame:SetScript("OnEvent", function()
     InitDB()
+    SetDefaultBinding()
     PF.loggedIn = true
     for _, name in ipairs(PF.order) do
         local mod = PF.modules[name]
