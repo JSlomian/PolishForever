@@ -39,14 +39,21 @@ end
 local function Lookup(english)
     local ok, result = pcall(function()
         if not english or english == "" or english:sub(-2) == PF.NBSP then return end
-        local gossip = PF.Gossip
-        if not gossip then return end
         local clean = Clean(english)
-        local pl = gossip[PF.Hash(clean)]
-        if not pl then
+        local gossip = PF.Gossip
+        local pl = gossip and gossip[PF.Hash(clean)]
+        if not pl and gossip then
             -- quest titles in the option list may carry a " (low level)" suffix
             local trimmed = clean:gsub(" %(low level%)", "")
             if trimmed ~= clean then pl = gossip[PF.Hash(trimmed)] end
+        end
+        if not pl then
+            -- Not everything in the gossip list is gossip text -- a completable quest's option
+            -- can read a plain generic string like "Ready for turn-in" instead of its title,
+            -- which PF.Gossip (vmangos-sourced NPC lines) has no entry for. Same fix as the
+            -- quest tracker/map-list's completion line: fall back to the UI text table.
+            local text2 = PF.Text
+            pl = text2 and text2.UI and text2.UI[PF.Hash(clean)]
         end
         return pl
     end)
