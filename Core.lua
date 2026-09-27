@@ -373,9 +373,7 @@ function PF.NewPreviewScope()
 end
 
 -- Bug reports -----------------------------------------------------------------------------------
--- CHANGEME once the addon is actually published -- see the GitHub-publish plan; the "Report"
--- buttons are wired up now so they're ready the moment this is a real repo URL.
-PF.REPO_URL = "https://github.com/CHANGEME/PolishForever"
+PF.REPO_URL = "https://github.com/JSlomian/PolishForever"
 
 local function urlEncode(s)
     s = tostring(s or ""):gsub("\r\n", "\n"):gsub("\n", "\r\n")
