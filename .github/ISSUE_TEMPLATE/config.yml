@@ -1,0 +1,3 @@
+# Only one issue type exists (translation.md); this hides GitHub's default "blank issue" option
+# from the picker so the "New issue" button always goes straight to that one template.
+blank_issues_enabled: false
