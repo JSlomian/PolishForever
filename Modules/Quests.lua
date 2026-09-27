@@ -86,7 +86,7 @@ local function Apply()
                 local fs = obj.GetText and obj or (obj.Text)
                 local text = fs and fs.GetText and fs:GetText()
                 if text then
-                    local pl = translateObjectiveLine(text) or completionLineText(text, q)
+                    local pl = translateObjectiveLine(text) or completionLineText(text)
                     if pl then detailScope.ApplyText(fs, pl, "body") end
                 end
             end
@@ -200,19 +200,20 @@ function translateObjectiveLine(text)
     return ok and result or nil
 end
 
--- The tracker's "QuestComplete" line and the quest-map list's completion bullet both show either
--- the generic GlobalStrings "Ready for turn-in" text or a per-quest custom completion flavor
--- line -- there's no counter to strip (unlike translateObjectiveLine's lines), so try an exact
--- hash match against the UI text table first (catches the generic string, translated once via
--- PF.Text.UI), then fall back to this quest's own COMPLETION field for the custom-flavor case.
+-- The tracker's "QuestComplete" line and the quest-map list's completion bullet show the short
+-- generic GlobalStrings "Ready for turn-in" text -- an exact hash match against the UI text
+-- table (translated once via PF.Text.UI) is all this needs. q[COMPLETION] is NOT a valid
+-- fallback here: it's the NPC's full multi-paragraph turn-in dialogue (shown elsewhere, in the
+-- reward panel/gossip greeting), and substituting it into this one-line status field showed the
+-- entire speech in place of "Ready for turn-in" for quests whose questgiver you haven't even
+-- gone back to yet. If the hash doesn't match, leave the line as-is (same hash-mismatch-is-safe
+-- principle as translateObjectiveLine) rather than guess at a replacement.
 -- Wrapped in pcall like translateObjectiveLine (secret-value protection).
-function completionLineText(text, q)
+function completionLineText(text)
     local ok, result = pcall(function()
         if not text then return nil end
         local text2 = PF.Text
-        local pl = text2 and text2.UI and text2.UI[PF.Hash(text)]
-        if pl then return pl end
-        if q and q[COMPLETION] and q[COMPLETION] ~= "" then return PF.Expand(q[COMPLETION]) end
+        return text2 and text2.UI and text2.UI[PF.Hash(text)]
     end)
     return ok and result or nil
 end
@@ -238,7 +239,7 @@ local function ApplyTracker()
                     -- Was PF.Expand(q[OBJECTIVES]) -- wrong field: that's the objectives
                     -- *paragraph*, not the "Ready for turn-in"/completion line this widget
                     -- actually shows, so it silently never matched and stayed English.
-                    local pl = completionLineText(line.Text:GetText(), q)
+                    local pl = completionLineText(line.Text:GetText())
                     if pl then setIfChanged(line.Text, pl, "body", block) end
                 elseif type(line.objectiveKey) == "number" and line.Text then
                     local pl = translateObjectiveLine(line.Text:GetText())
@@ -281,12 +282,10 @@ local function ApplyQuestMapList()
         for line in sf.objectiveFramePool:EnumerateActive() do
             if line.Text then
                 local text = line.Text:GetText()
-                local id = line.questID
-                local q = id and PF.Quests and PF.Quests[id]
                 -- translateObjectiveLine handles "N/M name" bullets; completionLineText covers
                 -- the "Ready for turn-in"/completion bullet shown once a quest's objectives are
                 -- all done (same generic-string gap as the tracker's QuestComplete branch above).
-                local pl = translateObjectiveLine(text) or completionLineText(text, q)
+                local pl = translateObjectiveLine(text) or completionLineText(text)
                 if pl then
                     listScope.ApplyText(line.Text, pl, "body")
                     changed = true
