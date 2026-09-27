@@ -383,7 +383,16 @@ local function translateQuestTooltip(tt)
                 -- every non-matching line with the objectives sentence overwrote all of them
                 -- with the same text instead of leaving them alone. Only apply a verified
                 -- hash-match; anything else stays English.
-                pl = translateObjectiveLine(text) or completionLineText(text)
+                -- Unlike the list/tracker widgets (whose bullet is a separate decoration next
+                -- to the FontString), this tooltip's per-objective rows have a literal "- "
+                -- baked into the line text itself (confirmed via screenshot: "- 0/1 Captain
+                -- Melrache slain") -- translateObjectiveLine's counter pattern only matches at
+                -- the very start of the string, so that leading dash silently blocked every
+                -- counter line from ever matching. Strip it, translate, reattach.
+                local dash, rest = text:match("^(%- )(.*)$")
+                local core = rest or text
+                pl = translateObjectiveLine(core) or completionLineText(core)
+                if pl and dash then pl = dash .. pl end
             end
             if pl and pl ~= text then PF.SetText(fs, pl, i == 1 and "title" or "body") end
         end
