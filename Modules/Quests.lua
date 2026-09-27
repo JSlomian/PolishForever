@@ -195,6 +195,19 @@ function translateObjectiveLine(text)
         if not text then return nil end
         local counter, rest = text:match("^(%d+/%d+%s+)(.*)$")
         if not counter then return nil end
+        local text2 = PF.Text
+        -- A finished objective gets a trailing " (Complete)" bracket appended (confirmed via
+        -- screenshot: "4/4 Vicious Night Web Spider Venom (Complete)") -- this sits *after* any
+        -- OBJ_SUFFIXES verb and wasn't stripped at all, so the whole rest-of-string never
+        -- hash-matched the plain item/creature name and silently stayed English. Peel it off (and
+        -- translate the bracketed word too, best-effort) before the suffix/name matching below.
+        local base, bracketWord = rest:match("^(.-)%s+%((.-)%)$")
+        local bracket
+        if base then
+            rest = base
+            local plWord = text2 and text2.UI and text2.UI[PF.Hash(bracketWord)]
+            bracket = " (" .. (plWord or bracketWord) .. ")"
+        end
         local suffix = ""
         for _, s in ipairs(OBJ_SUFFIXES) do
             if rest:sub(-#s) == s then
@@ -203,10 +216,9 @@ function translateObjectiveLine(text)
                 break
             end
         end
-        local text2 = PF.Text
         local pl = (text2 and text2.Items and text2.Items[PF.Hash(rest)])
             or (text2 and text2.Creatures and text2.Creatures[PF.Hash(rest)])
-        if pl then return counter .. pl .. suffix end
+        if pl then return counter .. pl .. suffix .. (bracket or "") end
     end)
     return ok and result or nil
 end
