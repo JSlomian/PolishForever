@@ -215,10 +215,36 @@ local function status()
     end
 end
 
+-- /pl test <Group> <exact English text> -- diagnostic: shows the hash and whether it's a key
+-- in PF.Text.<Group> (or PF.Gossip for "Gossip"), so a translation gap can be narrowed down to
+-- "data/hash mismatch" vs. "hook never fired" without needing to reproduce it by hovering.
+-- Case-sensitive and NOT lowercased (unlike the rest of this command), since the hash depends
+-- on exact text.
+local function testLookup(raw)
+    local group, text = strmatch(raw or "", "^(%S+)%s+(.*)$")
+    if not (group and text and text ~= "") then
+        PF:Print("usage: /pl test <Group> <exact English text>, e.g. /pl test Items Hearthstone")
+        return
+    end
+    local t = (group == "Gossip") and PF.Gossip or (PF.Text and PF.Text[group])
+    local h = PF.Hash(text)
+    if not t then
+        PF:Print(("test: no such table PF.Text.%s (or PF.Gossip)"):format(group))
+        return
+    end
+    local pl = t[h]
+    PF:Print(("test %s %q -> hash %d, %s"):format(group, text, h, pl and ("found: " .. pl) or "NOT FOUND"))
+end
+
 SLASH_POLISHFOREVER1 = "/pl"
 SLASH_POLISHFOREVER2 = "/polishforever"
-SlashCmdList.POLISHFOREVER = function(input)
-    local a, b = strmatch(strtrim(input or ""):lower(), "^(%S*)%s*(%S*)$")
+SlashCmdList.POLISHFOREVER = function(rawInput)
+    local firstWord = strmatch(strtrim(rawInput or ""), "^(%S*)")
+    if firstWord and firstWord:lower() == "test" then
+        testLookup((strtrim(rawInput or "")):gsub("^%S+%s*", ""))
+        return
+    end
+    local a, b = strmatch(strtrim(rawInput or ""):lower(), "^(%S*)%s*(%S*)$")
     if a == "" or a == "config" then
         if PF.OpenConfig then PF:OpenConfig() end
     elseif a == "status" then

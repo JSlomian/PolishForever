@@ -15,11 +15,15 @@ local hooked = false
 function Abilities:OnEnable()
     if hooked then return end
     hooked = true
-    if GameTooltip and GameTooltip.HookScript then
+    local ok = GameTooltip and GameTooltip.HookScript
+    if ok then
         GameTooltip:HookScript("OnTooltipSetSpell", function(self)
             if PF:IsEnabled("Abilities") then PF.TranslateTooltipLines(self, PF.Text.Spells) end
         end)
     end
+    local n = 0
+    for _ in pairs(PF.Text.Spells or {}) do n = n + 1 end
+    PF:Print(("Abilities: %d translations loaded, hooked %s"):format(n, tostring(ok and true or false)))
 end
 
 function Abilities:OnDisable() end
