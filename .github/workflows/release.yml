@@ -1,12 +1,11 @@
 name: Package and release
 
-# Fires on every pushed tag (e.g. `git tag v1.2.3 && git push origin v1.2.3`). CurseForge itself
-# is linked directly to this GitHub repo (its own "Source" tab, not this workflow) and repackages
-# from it on every commit -- no CF_API_KEY/upload step needed here for that. This workflow just
-# uses BigWigsMods/packager (the standard tool most WoW addons use) to zip the addon, substitute
+# Fires on every pushed tag (e.g. `git tag v1.2.3 && git push origin v1.2.3`). Uses
+# BigWigsMods/packager (the standard tool most WoW addons use) to zip the addon, substitute
 # @project-version@ in the .toc with the tag name, and publish it as a GitHub Release with that
-# zip attached. WOWI_API_TOKEN/WAGO_API_TOKEN below are optional, only used if those secrets are
-# ever added, for also publishing to WoWInterface/Wago.
+# zip attached. CF_API_KEY below uploads the same package directly to CurseForge; WOWI_API_TOKEN/
+# WAGO_API_TOKEN are optional, only used if those secrets are ever added, for also publishing to
+# WoWInterface/Wago.
 on:
   push:
     tags:
@@ -22,6 +21,7 @@ jobs:
       - name: Package and release
         uses: BigWigsMods/packager@v2
         env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
           WOWI_API_TOKEN: ${{ secrets.WOWI_API_TOKEN }}
           WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
           GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
