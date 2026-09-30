@@ -242,8 +242,14 @@ end
 local KIND_SIZE_BOOST = { title = 0 }
 function PF.SetText(fs, text, kind)
     if not fs or not text or text == "" then return false end
-    if not fs.pfFont then
-        local font, size, flags = fs:GetFont()
+    -- Remember the stock font so it can be restored -- but re-read it whenever the FontString
+    -- isn't currently wearing one of ours: pooled/reused strings (tooltip lines, list rows) get a
+    -- different stock font/size from Blizzard on each reuse, and a stale first capture made some
+    -- tooltip objective lines render at the wrong size.
+    local font, size, flags = fs:GetFont()
+    local function norm(p) return p and p:lower():gsub("/", "\\") end
+    local f = norm(font)
+    if not fs.pfFont or (f ~= norm(PF.Fonts.body) and f ~= norm(PF.Fonts.title)) then
         fs.pfFont = { font, size, flags }
     end
     local orig = fs.pfFont
@@ -253,6 +259,25 @@ function PF.SetText(fs, text, kind)
     end
     fs:SetText(text)
     return true
+end
+
+-- Tooltip lines are pooled FontStrings that Blizzard reuses without resetting their font, so a
+-- font we set on a line (PF.SetText) would leak into whatever the tooltip shows next -- one line
+-- of a later tooltip ended up a different face/size than its neighbours. Put every line we
+-- touched back to its stock font when the tooltip hides.
+function PF.RestoreTooltipFonts(tooltip)
+    local name = tooltip and tooltip.GetName and tooltip:GetName()
+    if not name then return end
+    for i = 1, tooltip:NumLines() do
+        for _, side in ipairs({ "TextLeft", "TextRight" }) do
+            local fs = _G[name .. side .. i]
+            local f = fs and fs.pfFont
+            if f and f[1] then fs:SetFont(f[1], f[2] or 12, f[3]) end
+        end
+    end
+end
+if GameTooltip and GameTooltip.HookScript then
+    GameTooltip:HookScript("OnHide", function(self) pcall(PF.RestoreTooltipFonts, self) end)
 end
 
 -- Recursively search a frame tree for a Button whose GetText() equals `label` -- lets us anchor

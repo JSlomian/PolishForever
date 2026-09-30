@@ -273,37 +273,80 @@ end
 -- (line.Text, line.objectiveKey). Objective lines like "0/6 Prairie Wolf Paw" are built by the game
 -- from item/creature names, so only titles and the "ready to turn in" text are translated here.
 --
--- Rescale note: Blizzard's tracker computes each block's height (and therefore where the NEXT
--- block gets anchored) from the English text *before* our hook ever runs -- EndLayout stacks
--- blocks using that already-frozen `block.height`. Polish text is often longer and wraps onto
--- more lines, so swapping the text afterward without correcting `block.height` leaves later
--- blocks/lines anchored too high and overlapping.
---
--- GetStringHeight() can return stale (pre-SetText) metrics when queried in the very same
--- execution frame as the SetFont+SetText call, especially right after a font swap -- measuring
--- the "after" height immediately sometimes computed a wrong (usually zero) delta, under-sizing
--- the block and letting translated text overflow into the next one (the exact bug reported).
--- Defer the "after" measurement and the resulting resize/relayout by one frame via
--- C_Timer.After(0, ...) so the metrics have settled first.
+-- Sizing: Blizzard's tracker measures each header/objective line right after its own
+-- `fontString:SetText(english)` (ObjectiveTrackerBlock:SetStringText / AddObjective), sums those
+-- into block.height and stacks blocks from it. Swapping text afterwards leaves that height frozen
+-- from English, and patching block.height ourselves (an earlier before/after-delta version) drifts:
+-- the "before" measurement can be stale, which over-counted and left blank lines under most blocks.
+-- So, as for the quest-map list below: each header/line FontString gets a one-time SetText
+-- post-hook that swaps in the Polish text synchronously -- before Blizzard measures -- looked up by
+-- exact English string in a cache ApplyTracker fills. When ApplyTracker translated something new
+-- (already measured as English), it asks the tracker to re-run its own update (MarkDirty), which
+-- now measures Polish. We never touch a height.
 local applyingTracker = false
-local function setIfChanged(fs, text, kind, block)
-    if not (fs and text and text ~= "" and fs:GetText() ~= text) then return end
-    local before = fs.GetStringHeight and fs:GetStringHeight() or 0
-    trackerScope.ApplyText(fs, text, kind)
-    if not (block and type(block.height) == "number") then return end
-    C_Timer.After(0, function()
-        if not (fs and fs.GetStringHeight) then return end
-        local delta = fs:GetStringHeight() - before
-        if delta == 0 then return end
-        block.height = block.height + delta
-        if block.SetHeight then block:SetHeight(block.height) end
-        local tracker = QuestObjectiveTracker
-        if tracker and type(tracker.EndLayout) == "function" then
-            applyingTracker = true
-            tracker:EndLayout()
-            applyingTracker = false
-        end
+local trackerCache = {} -- english string -> { polish, kind }
+local inTrackerHook = false
+
+-- Every tracker header/line FontString gets hooked, translated or not: strings with no Polish
+-- text still take our font (mixing Blizzard's stock face with ours looks wrong), and that has to
+-- be in place before Blizzard measures too. `pfTranslated` marks "holds Polish text"; it is kept
+-- apart from scope.ApplyText's own pfPolish, which for a font-only string is just the English.
+local function hookTrackerText(fs, kind)
+    fs.pfTrackerKind = kind
+    if fs.pfTrackerHooked then return end
+    fs.pfTrackerHooked = true
+    hooksecurefunc(fs, "SetText", function(self, text)
+        if inTrackerHook then return end
+        if not PF:IsEnabled("Quests") or trackerScope.previewEnglish then return end
+        inTrackerHook = true
+        -- pcall: `text` may be a protected "secret value" string (see PF.Hash).
+        pcall(function()
+            if type(text) ~= "string" or text == "" then return end
+            local entry = trackerCache[text]
+            self.pfOriginal = text -- pooled FontStrings are reused: keep the EN-preview source fresh
+            if entry then
+                self.pfTranslated = entry[1]
+                trackerScope.ApplyText(self, entry[1], entry[2])
+            else
+                self.pfTranslated = nil
+                trackerScope.ApplyText(self, text, self.pfTrackerKind or "body")
+            end
+        end)
+        inTrackerHook = false
     end)
+end
+
+-- Returns true when this English string is new to the cache (Blizzard already measured it).
+local function setIfChanged(fs, text, kind)
+    if not (fs and text and text ~= "") then return false end
+    local english = fs:GetText()
+    if not english or english == text or english == fs.pfTranslated then return false end
+    hookTrackerText(fs, kind)
+    local isNew = trackerCache[english] == nil
+    trackerCache[english] = { text, kind }
+    inTrackerHook = true
+    fs.pfOriginal = english
+    fs.pfTranslated = text
+    trackerScope.ApplyText(fs, text, kind)
+    inTrackerHook = false
+    return isNew
+end
+
+-- Untranslated string: just put our font on it. Returns true the first time a string gets styled
+-- (Blizzard measured it in its stock font, so a redraw is needed).
+local function styleIfUntranslated(fs, kind)
+    if not fs then return false end
+    local text = fs:GetText()
+    if not text or text == "" or text == fs.pfTranslated then return false end
+    hookTrackerText(fs, kind)
+    if fs.pfStyledText == text then return false end
+    fs.pfStyledText = text
+    inTrackerHook = true
+    fs.pfOriginal = text
+    fs.pfTranslated = nil
+    trackerScope.ApplyText(fs, text, kind)
+    inTrackerHook = false
+    return true
 end
 
 -- Objective progress lines ("0/8 Bleeding Horror slain", "0/1 Spells of Shadow") are built by
@@ -377,15 +420,20 @@ local function ApplyTracker()
     local contents = tracker and tracker.ContentsFrame
     if not (contents and contents.GetChildren) then return end
     applyingTracker = true
+    local needsRefresh = false
     for _, block in ipairs({ contents:GetChildren() }) do
         local id = block.poiQuestID
         local q = id and PF.Quests and PF.Quests[id]
-        if q and block:IsShown() then
+        if id and block:IsShown() then
             local header = block.HeaderText
             local current = header and header:GetText()
             if current then
                 local prefix = titlePrefix(current)
-                setIfChanged(header, prefix .. PF.Expand(q[TITLE]), "title", block)
+                if q and setIfChanged(header, prefix .. PF.Expand(q[TITLE]), "title") then
+                    needsRefresh = true
+                elseif styleIfUntranslated(header, "title") then
+                    needsRefresh = true
+                end
             end
             local children = { block:GetChildren() }
             -- Narrative single-objective quests (e.g. "Return Gunther's Spellbook to him, on
@@ -401,24 +449,34 @@ local function ApplyTracker()
                 if type(line.objectiveKey) == "number" then numericCount = numericCount + 1 end
             end
             for _, line in ipairs(children) do
-                if line.objectiveKey == "QuestComplete" and line.Text then
-                    -- Was PF.Expand(q[OBJECTIVES]) -- wrong field: that's the objectives
-                    -- *paragraph*, not the "Ready for turn-in"/completion line this widget
-                    -- actually shows, so it silently never matched and stayed English.
-                    local pl = completionLineText(line.Text:GetText())
-                    if pl then setIfChanged(line.Text, pl, "body", block) end
-                elseif type(line.objectiveKey) == "number" and line.Text then
-                    local text = line.Text:GetText()
-                    local pl = translateObjectiveLine(text) or completionLineText(text)
-                        or (numericCount == 1 and q[OBJECTIVES] ~= "" and PF.Expand(q[OBJECTIVES]))
-                    if pl then setIfChanged(line.Text, pl, "body", block) end
+                local fs = line.Text
+                if fs and fs:GetText() ~= fs.pfTranslated then
+                    local pl
+                    if line.objectiveKey == "QuestComplete" then
+                        -- Was PF.Expand(q[OBJECTIVES]) -- wrong field: that's the objectives
+                        -- *paragraph*, not the "Ready for turn-in"/completion line this widget
+                        -- actually shows, so it silently never matched and stayed English.
+                        pl = completionLineText(fs:GetText())
+                    elseif type(line.objectiveKey) == "number" then
+                        local text = fs:GetText()
+                        pl = translateObjectiveLine(text) or completionLineText(text)
+                            or (q and numericCount == 1 and q[OBJECTIVES] ~= "" and PF.Expand(q[OBJECTIVES]))
+                    end
+                    if pl and setIfChanged(fs, pl, "body") then
+                        needsRefresh = true
+                    elseif not pl and styleIfUntranslated(fs, "body") then
+                        needsRefresh = true
+                    end
                 end
             end
         end
     end
     applyingTracker = false
-    -- Per-widget height/relayout correction happens inside setIfChanged itself, deferred one
-    -- frame (see comment above it) -- nothing further to do here.
+    -- Blizzard measured those strings as English: have it re-run its own update (next frame) so
+    -- the SetText hooks + cache put Polish in first. A second pass finds only cache hits.
+    if needsRefresh and tracker and type(tracker.MarkDirty) == "function" then
+        pcall(tracker.MarkDirty, tracker)
+    end
 end
 
 -- Modern "Map & Quest Log" list (the quest titles + inline objective bullets shown in the World
@@ -429,46 +487,79 @@ end
 -- .objectiveFramePool), each carrying its own .questID, rebuilt from scratch on every
 -- QuestLogQuests_Update() call (a bare global function, not a method) -- so like the tracker,
 -- this must be re-applied every time that fires, not just once.
--- Previous attempt manually grew the row widget's own height (widget:SetHeight) before calling
--- Contents:Layout(), reasoning that Layout() re-stacks rows from their existing frame height
--- rather than re-measuring the FontString. That produced a worse bug: this list's rows are
--- CreateFramePool-managed and get released/reused on a category collapse/expand, and our manual
--- SetHeight on a pooled frame fought with Blizzard's own pool/layout bookkeeping for that frame,
--- leaving stale rows visually duplicated/overlapping once they were reassigned (screenshot:
--- collapsing "Undercity" left quest 12's old objective text ghosted where quest 8's row/the
--- category header now sit). Just re-running Blizzard's own Layout() after the text has settled
--- -- without us touching any row's height directly -- is more conservative: if Layout() doesn't
--- re-measure from content on its own, rows may still overflow visually, but that's a contained
--- cosmetic issue, not pool-state corruption.
-local function setListText(fs, text, kind)
-    if not (fs and text and text ~= "" and fs:GetText() ~= text) then return end
-    listScope.ApplyText(fs, text, kind)
-    C_Timer.After(0, function()
-        local sf = QuestMapFrame and QuestMapFrame.QuestsFrame and QuestMapFrame.QuestsFrame.ScrollFrame
-        if sf and sf.Contents and type(sf.Contents.Layout) == "function" then
-            sf.Contents:Layout()
-        end
+-- Sizing: Blizzard's QuestLogQuests_Update does `Text:SetText(english)` and immediately
+-- `row:SetHeight(Text:GetStringHeight())`, sums those into the title button's height, then calls
+-- Contents:Layout(). A plain post-hook on QuestLogQuests_Update therefore swaps text after every
+-- height is frozen from the English string (rows overlap). Manually growing row heights is not an
+-- option either: rows are CreateFramePool-managed, and our own SetHeight on a pooled frame fought
+-- Blizzard's pool/layout bookkeeping and left ghosted, duplicated rows after a collapse/expand.
+-- Instead, each row FontString gets a one-time SetText post-hook that swaps in the Polish text
+-- *synchronously*, i.e. before Blizzard's next line (GetStringHeight) runs -- so Blizzard itself
+-- measures, sizes and lays out the Polish text. The hook needs no row context: it looks the exact
+-- English string up in a cache that ApplyQuestMapList fills the first time it sees a row. When
+-- that pass translated something new, Blizzard's own update is re-run once (behind a flag) so
+-- the rows already on screen get re-measured too.
+local listCache = {} -- english string -> { polish, kind }
+local inListHook, refreshingList = false, false
+
+local function hookListText(fs)
+    if fs.pfListHooked then return end
+    fs.pfListHooked = true
+    hooksecurefunc(fs, "SetText", function(self, text)
+        if inListHook then return end
+        if not PF:IsEnabled("Quests") or listScope.previewEnglish then return end
+        -- pcall: `text` may be a protected "secret value" string (see PF.Hash).
+        local ok, entry = pcall(function() return type(text) == "string" and listCache[text] end)
+        if not (ok and entry) then return end
+        inListHook = true
+        self.pfOriginal = text -- pooled FontStrings are reused: keep the EN-preview source fresh
+        listScope.ApplyText(self, entry[1], entry[2])
+        inListHook = false
     end)
 end
 
+-- Returns true when `text` is new to the cache (i.e. Blizzard measured it before we translated).
+local function setListText(fs, english, text, kind)
+    if not (fs and english and text and text ~= "" and english ~= text) then return false end
+    hookListText(fs)
+    local isNew = listCache[english] == nil
+    listCache[english] = { text, kind }
+    inListHook = true
+    fs.pfOriginal = english
+    listScope.ApplyText(fs, text, kind)
+    inListHook = false
+    return isNew
+end
+
 local function ApplyQuestMapList()
-    if not PF:IsEnabled("Quests") then return end
+    if refreshingList or not PF:IsEnabled("Quests") then return end
     local sf = QuestMapFrame and QuestMapFrame.QuestsFrame and QuestMapFrame.QuestsFrame.ScrollFrame
     if not sf then return end
+    local needsRefresh = false
     if sf.titleFramePool then
         for title in sf.titleFramePool:EnumerateActive() do
             local id = title.questID
             local q = id and PF.Quests and PF.Quests[id]
-            if q and title.Text then
+            -- Skip rows our SetText hook already translated (their text is Polish, not a cache key).
+            if q and title.Text and title.Text:GetText() ~= title.Text.pfPolish then
                 local current = title.Text:GetText()
                 local prefix = titlePrefix(current)
-                setListText(title.Text, prefix .. PF.Expand(q[TITLE]), "title")
+                if setListText(title.Text, current, prefix .. PF.Expand(q[TITLE]), "title") then
+                    needsRefresh = true
+                end
             end
         end
     end
     if sf.objectiveFramePool then
+        -- How many objective lines each quest has: the q[OBJECTIVES] paragraph is only a valid
+        -- stand-in for a quest with exactly one (see the same rule in ApplyTracker), otherwise
+        -- it would get stamped over every line of a multi-objective quest.
+        local perQuest = {}
         for line in sf.objectiveFramePool:EnumerateActive() do
-            if line.Text then
+            if line.questID then perQuest[line.questID] = (perQuest[line.questID] or 0) + 1 end
+        end
+        for line in sf.objectiveFramePool:EnumerateActive() do
+            if line.Text and line.Text:GetText() ~= line.Text.pfPolish then
                 local text = line.Text:GetText()
                 local id = line.questID
                 local q = id and PF.Quests and PF.Quests[id]
@@ -481,10 +572,17 @@ local function ApplyQuestMapList()
                 -- themselves out, q[OBJECTIVES] (the same short summary sentence used in the
                 -- detail view) is the remaining possibility, not an open-ended guess.
                 local pl = translateObjectiveLine(text) or completionLineText(text)
-                    or (q and q[OBJECTIVES] ~= "" and PF.Expand(q[OBJECTIVES]))
-                if pl then setListText(line.Text, pl, "body") end
+                    or (q and perQuest[id] == 1 and q[OBJECTIVES] ~= "" and PF.Expand(q[OBJECTIVES]))
+                if pl and setListText(line.Text, text, pl, "body") then needsRefresh = true end
             end
         end
+    end
+    -- Rows already on screen were measured from English; have Blizzard redo its own update now
+    -- that the SetText hooks + cache will put Polish in before it measures.
+    if needsRefresh and type(_G["QuestLogQuests_Update"]) == "function" then
+        refreshingList = true
+        pcall(_G["QuestLogQuests_Update"])
+        refreshingList = false
     end
 end
 
@@ -494,8 +592,10 @@ end
 -- get -- so there's nothing clean to hook there. Instead: hooked on GameTooltip:Show() itself
 -- (cheap to bail early -- almost every tooltip's owner has no .questID) and translated using the
 -- row button's own .questID, same as ApplyQuestMapList.
+local retooltipping = false
 local function translateQuestTooltip(tt)
-    if not PF:IsEnabled("Quests") then return end
+    if retooltipping or not PF:IsEnabled("Quests") then return end
+    local changed = false
     local okOwner, owner = pcall(tt.GetOwner, tt)
     local id = okOwner and owner and owner.questID
     local q = id and PF.Quests and PF.Quests[id]
@@ -528,8 +628,22 @@ local function translateQuestTooltip(tt)
                 pl = translateObjectiveLine(core) or completionLineText(core)
                 if pl and dash then pl = dash .. pl end
             end
-            if pl and pl ~= text then PF.SetText(fs, pl, i == 1 and "title" or "body") end
+            -- Untranslated lines take our font too (same text), so the tooltip doesn't mix
+            -- Blizzard's face with ours.
+            if pl and pl ~= text then
+                PF.SetText(fs, pl, i == 1 and "title" or "body")
+                changed = true
+            elseif text ~= "" and PF.SetText(fs, text, "body") then
+                changed = true
+            end
         end
+    end
+    -- The tooltip sized itself for the English lines when it was shown; Show() again is
+    -- Blizzard's own path to re-measure and resize it (guarded: this runs from a Show hook).
+    if changed then
+        retooltipping = true
+        tt:Show()
+        retooltipping = false
     end
 end
 
