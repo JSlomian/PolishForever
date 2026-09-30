@@ -396,7 +396,7 @@ end
 
 StaticPopupDialogs["POLISHFOREVER_REPORT"] = {
     text = "Copy this link (Ctrl+C) and open it in your browser to file the report. " ..
-        "The current text/details are printed in chat above -- paste them into the issue yourself.",
+        "The ID and context are already filled in -- just describe what's wrong.",
     button1 = CLOSE,
     hasEditBox = true,
     editBoxWidth = 350,
@@ -421,18 +421,22 @@ StaticPopupDialogs["POLISHFOREVER_REPORT"] = {
 
 -- kind: "quest" / "gossip" / "item" / "spell" / ... ; id: the quest/item/spell ID (may be nil);
 -- extra: free-form context -- for quests, which panel/part was open (e.g. "objectives",
--- "rewards"); for gossip, the English source line (no stable ID). `current` is accepted for
--- callers that still pass it but is intentionally UNUSED here: an in-game field's text
--- URL-encoded into &body= risks pushing the link past a sane length for anything but the
--- shortest lines, and can silently fail to open. The actual field layout (Current Polish text /
--- Suggested Polish text / Why) lives in .github/ISSUE_TEMPLATE/translation.md in the repo, not in
--- addon code -- the URL only needs to select that template and prefill the short title (which
--- already carries kind + id + part); the reporter fills in the text themselves once the page
--- opens, looking at their own screen.
+-- "rewards"); for gossip, the English source line (its ID is PF.Hash of that line). `current`
+-- is accepted for callers that still pass it but is intentionally UNUSED here: full in-game
+-- text in the URL risks pushing the link past a sane length and can silently fail to open. The
+-- field layout lives in .github/ISSUE_TEMPLATE/translation.yml; the URL only prefills its short
+-- kind/id/context fields and the title, and the reporter describes the problem themselves.
 function PF.ReportBug(kind, id, current, extra)
-    local title = ("[translation] %s%s%s"):format(kind, id and (" " .. tostring(id)) or "",
-        extra and (" (" .. extra .. ")") or "")
-    local url = PF.REPO_URL .. "/issues/new?template=translation.md&title=" .. urlEncode(title)
+    -- The template is an issue form (translation.yml): GitHub prefills any form field whose
+    -- `id:` matches a query parameter, so kind/id/context arrive already filled in. `extra` is
+    -- capped so a long gossip line can't push the link past a length browsers/GitHub accept.
+    if type(id) == "number" then id = ("%.0f"):format(id) end
+    extra = extra and tostring(extra):sub(1, 200)
+    local title = ("[translation] %s%s"):format(kind, id and (" " .. id) or "")
+    local url = PF.REPO_URL .. "/issues/new?template=translation.yml&title=" .. urlEncode(title)
+        .. "&kind=" .. urlEncode(kind)
+        .. (id and "&id=" .. urlEncode(id) or "")
+        .. (extra and extra ~= "" and "&context=" .. urlEncode(extra) or "")
     StaticPopup_Show("POLISHFOREVER_REPORT", nil, nil, url)
 end
 

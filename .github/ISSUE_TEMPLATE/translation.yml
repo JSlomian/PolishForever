@@ -1,0 +1,41 @@
+name: Translation issue
+description: Report wrong, missing, or awkward Polish text, or a mismatched NPC voice/race
+title: "[translation] "
+labels: ["translation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The in-game **Report** button prefills the first three fields. No need to paste the whole
+        quest -- just the specific wrong bit is enough.
+  - type: input
+    id: kind
+    attributes:
+      label: Kind
+      description: quest / gossip / item / spell / ui / general
+    validations:
+      required: true
+  - type: input
+    id: id
+    attributes:
+      label: ID
+      description: Quest/item/spell ID, or the text hash for gossip (blank for general reports)
+  - type: input
+    id: context
+    attributes:
+      label: Context
+      description: Which part of the window was open, or the English source line
+  - type: textarea
+    id: wrong
+    attributes:
+      label: Wrong/missing bit
+    validations:
+      required: true
+  - type: textarea
+    id: suggested
+    attributes:
+      label: Should be
+  - type: textarea
+    id: why
+    attributes:
+      label: Why

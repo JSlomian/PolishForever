@@ -12,5 +12,5 @@ Commands: `/pl` settings, `/pl status`, `/pl <module> on|off`, `/pl dump` (diagn
 
 ## Contributing translation fixes
 
-Found a wrong or awkward translation in-game? Open an issue using the "Translation fix" template --
-accepted fixes are recorded as permanent overrides that future automated translation runs never touch.
+Found a wrong or awkward translation in-game? Click the in-game **Report** button (or press F7 over a tooltip) -- it gives you a link to a
+GitHub issue form with the text's ID and context already filled in. Accepted fixes are recorded as permanent overrides that future automated translation runs never touch.

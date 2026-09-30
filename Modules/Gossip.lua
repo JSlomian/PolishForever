@@ -102,7 +102,9 @@ local function ApplyOption(button)
 end
 
 local function reportGossip()
-    PF.ReportBug("gossip", nil, lastPolish, lastEnglish)
+    -- Same hash the Gossip data table is keyed by, so the ID maps straight back to the entry.
+    local hash = lastEnglish and PF.Hash(lastEnglish)
+    PF.ReportBug("gossip", hash and hash ~= 0 and hash or nil, lastPolish, lastEnglish)
 end
 
 local controlsInstalled = false
