@@ -3,6 +3,9 @@ local _, PF = ...
 local Quests = {
     desc = "Quest titles, descriptions, objectives, progress and completion text",
     implemented = true,
+    subs = {
+        { key = "trackerBold", label = "Bold text in the quest tracker (side bar)" },
+    },
 }
 
 -- PF.Quests[id] = { title, objectives, description, progress, completion }
@@ -285,6 +288,14 @@ end
 -- now measures Polish. We never touch a height.
 local applyingTracker = false
 local trackerCache = {} -- english string -> { polish, kind }
+
+-- Tracker strings are tagged with a semantic kind ("title", "bold" for objectives, "body"); the
+-- font weight is decided at the moment text is applied, so flipping the "bold" sub-option in
+-- Config takes effect on the next tracker redraw without clearing any cache.
+local function trackerFontKind(kind)
+    if kind ~= "body" and not PF:IsSubEnabled("Quests", "trackerBold") then return "body" end
+    return kind or "body"
+end
 local inTrackerHook = false
 
 -- Every tracker header/line FontString gets hooked, translated or not: strings with no Polish
@@ -306,10 +317,10 @@ local function hookTrackerText(fs, kind)
             self.pfOriginal = text -- pooled FontStrings are reused: keep the EN-preview source fresh
             if entry then
                 self.pfTranslated = entry[1]
-                trackerScope.ApplyText(self, entry[1], entry[2])
+                trackerScope.ApplyText(self, entry[1], trackerFontKind(entry[2]))
             else
                 self.pfTranslated = nil
-                trackerScope.ApplyText(self, text, self.pfTrackerKind or "body")
+                trackerScope.ApplyText(self, text, trackerFontKind(self.pfTrackerKind or "body"))
             end
         end)
         inTrackerHook = false
@@ -327,7 +338,7 @@ local function setIfChanged(fs, text, kind)
     inTrackerHook = true
     fs.pfOriginal = english
     fs.pfTranslated = text
-    trackerScope.ApplyText(fs, text, kind)
+    trackerScope.ApplyText(fs, text, trackerFontKind(kind))
     inTrackerHook = false
     return isNew
 end
@@ -339,12 +350,13 @@ local function styleIfUntranslated(fs, kind)
     local text = fs:GetText()
     if not text or text == "" or text == fs.pfTranslated then return false end
     hookTrackerText(fs, kind)
-    if fs.pfStyledText == text then return false end
-    fs.pfStyledText = text
+    local fontKind = trackerFontKind(kind)
+    if fs.pfStyledText == text and fs.pfStyledKind == fontKind then return false end
+    fs.pfStyledText, fs.pfStyledKind = text, fontKind
     inTrackerHook = true
     fs.pfOriginal = text
     fs.pfTranslated = nil
-    trackerScope.ApplyText(fs, text, kind)
+    trackerScope.ApplyText(fs, text, fontKind)
     inTrackerHook = false
     return true
 end
@@ -697,6 +709,13 @@ function Quests:OnEnable()
         QuestFrameRewardPanel:HookScript("OnShow", Apply)
     end
     installControls()
+end
+
+-- Config calls this after a sub-option changes: make the tracker re-run its own update so every
+-- line is re-applied (through the SetText hooks above) with the new weight.
+function Quests:OnSubChanged()
+    local tracker = QuestObjectiveTracker
+    if tracker and type(tracker.MarkDirty) == "function" then pcall(tracker.MarkDirty, tracker) end
 end
 
 function Quests:OnDisable()

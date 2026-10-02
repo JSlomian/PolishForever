@@ -111,6 +111,7 @@ local function BuildPanel()
                     subLabel:SetText(subDef.label)
                     subCheck:SetScript("OnClick", function(self)
                         PF:SetSubEnabled(name, subDef.key, self:GetChecked())
+                        if mod.OnSubChanged then pcall(mod.OnSubChanged, mod, subDef.key) end
                     end)
                     panel.subChecks[name][subDef.key] = subCheck
                     previous = subCheck
