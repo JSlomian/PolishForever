@@ -119,6 +119,41 @@ local function BuildPanel()
         end
     end
 
+    -- Font selector: pick one of PF.FontChoices (radio buttons, so it works on every client's
+    -- widget set). The preview line is drawn in the chosen font right away; windows already open
+    -- pick the new font up the next time they open.
+    local fontTitle = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    fontTitle:SetPoint("TOP", previous, "BOTTOM", 0, -20)
+    fontTitle:SetPoint("LEFT", sub, "LEFT", 0, 0)
+    fontTitle:SetText("Text font")
+    previous = fontTitle
+
+    local preview = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    panel.fontChecks = {}
+    local function showPreview()
+        local choice = PF:GetFontChoice()
+        preview:SetFont(choice.bodyPath, 14, "")
+        preview:SetText("Zażółć gęślą jaźń. Witaj, wędrowcze! Zabij dziesięć wilków i wróć po nagrodę.")
+    end
+    local function selectFont(key)
+        PF:SetFontChoice(key)
+        for k, c in pairs(panel.fontChecks) do c:SetChecked(k == key) end
+        showPreview()
+    end
+    for i, choice in ipairs(PF.FontChoices) do
+        local check = CreateFrame("CheckButton", "PolishForeverFont" .. choice.key, panel, "UICheckButtonTemplate")
+        check:SetSize(24, 24)
+        check:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 0, i == 1 and -4 or -2)
+        _G[check:GetName() .. "Text"]:SetText(choice.label .. "  |cff888888" .. choice.note .. "|r")
+        check:SetScript("OnClick", function() selectFont(choice.key) end)
+        panel.fontChecks[choice.key] = check
+        previous = check
+    end
+    preview:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 4, -10)
+    preview:SetWidth(520)
+    preview:SetJustifyH("LEFT")
+    previous = preview
+
     -- General feedback: the in-game Report button on quest windows is scoped to the quest on
     -- screen, but there's nowhere to report a bad spell/item/UI-label translation noticed outside
     -- that context (e.g. a wrong tooltip while browsing the spellbook). One general-purpose button
@@ -143,6 +178,9 @@ local function BuildPanel()
             check:SetChecked(PF:IsEnabled(name))
         end
         if panel.groupCheck then panel.groupCheck:SetChecked(groupChecked()) end
+        local activeFont = PF:GetFontChoice()
+        for key, check in pairs(panel.fontChecks) do check:SetChecked(key == activeFont.key) end
+        showPreview()
         for name, subs in pairs(panel.subChecks or {}) do
             for key, subCheck in pairs(subs) do
                 subCheck:SetChecked(PF:IsSubEnabled(name, key))

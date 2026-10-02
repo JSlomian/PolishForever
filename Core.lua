@@ -11,10 +11,54 @@ PF.NBSP = NBSP
 -- ornate different typeface like Morpheus -- so a bold weight of the same body face actually
 -- matches the original look better than a stylistically distinct one.
 local FONT_DIR = "Interface\\AddOns\\" .. ADDON .. "\\Fonts\\"
-PF.Fonts = {
-    body = FONT_DIR .. "EBGaramond-Body.ttf",
-    title = FONT_DIR .. "EBGaramond-Title.ttf",
+
+-- Selectable text fonts (all SIL OFL 1.1, licence files next to the .ttf, all with full Polish
+-- coverage). The Config panel lists these; PF.Fonts always holds the active pair, so every
+-- PF.SetText call picks the choice up the next time a window opens.
+PF.FontChoices = {
+    { key = "garamond", label = "EB Garamond", note = "elegant, small x-height",
+      body = "EBGaramond-Body.ttf", title = "EBGaramond-Title.ttf" },
+    { key = "marcellus", label = "Marcellus", note = "flared, closest to the original WoW look",
+      body = "Marcellus-Regular.ttf", title = "Marcellus-Regular.ttf" },
+    { key = "alegreya", label = "Alegreya Sans", note = "sturdy humanist sans, most readable",
+      body = "AlegreyaSans-Medium.ttf", title = "AlegreyaSans-Bold.ttf" },
+    { key = "gentium", label = "Gentium Book Plus", note = "clean open serif, easy to read",
+      body = "GentiumBookPlus-Regular.ttf", title = "GentiumBookPlus-Bold.ttf" },
 }
+PF.Fonts = {}
+
+local function normPath(p)
+    return p and (p:lower():gsub("/", "\\"))
+end
+
+local ourFontPaths = {}
+for _, c in ipairs(PF.FontChoices) do
+    c.bodyPath, c.titlePath = FONT_DIR .. c.body, FONT_DIR .. c.title
+    ourFontPaths[normPath(c.bodyPath)] = true
+    ourFontPaths[normPath(c.titlePath)] = true
+end
+
+function PF:GetFontChoice()
+    local key = PolishForeverDB and PolishForeverDB.font
+    for _, c in ipairs(PF.FontChoices) do
+        if c.key == key then return c end
+    end
+    return PF.FontChoices[1]
+end
+
+-- Make `key` the active font (and remember it). Unknown keys fall back to the first choice.
+function PF:SetFontChoice(key)
+    for _, c in ipairs(PF.FontChoices) do
+        if c.key == key then
+            if PolishForeverDB then PolishForeverDB.font = key end
+            PF.Fonts.body, PF.Fonts.title = c.bodyPath, c.titlePath
+            return c
+        end
+    end
+    return self:SetFontChoice(PF.FontChoices[1].key)
+end
+
+PF:SetFontChoice(PF.FontChoices[1].key) -- until the saved choice is read at login
 
 PF.modules = {}
 PF.order = {}
@@ -99,6 +143,7 @@ local function InitDB()
             PolishForeverDB.modules[name] = value
         end
     end
+    PF:SetFontChoice(PolishForeverDB.font)
 end
 
 -- Text helpers -------------------------------------------------------------------------------
@@ -265,9 +310,9 @@ function PF.SetText(fs, text, kind)
     -- different stock font/size from Blizzard on each reuse, and a stale first capture made some
     -- tooltip objective lines render at the wrong size.
     local font, size, flags = fs:GetFont()
-    local function norm(p) return p and p:lower():gsub("/", "\\") end
-    local f = norm(font)
-    if not fs.pfFont or (f ~= norm(PF.Fonts.body) and f ~= norm(PF.Fonts.title)) then
+    -- any of our shipped fonts counts as "ours", not just the active one, so a string still
+    -- wearing the previous choice after a font switch isn't mistaken for the stock font
+    if not fs.pfFont or not ourFontPaths[normPath(font)] then
         fs.pfFont = { font, size, flags }
     end
     local orig = fs.pfFont
