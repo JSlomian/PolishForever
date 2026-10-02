@@ -198,7 +198,7 @@ local function isFemale(unit)
 end
 
 -- Expand player-dependent placeholders in stored Polish text.
-function PF.Expand(msg)
+local function expand(msg)
     if not msg or msg == "" then return "" end
     local name = UnitName("player") or ""
     local race = UnitRace("player") or ""
@@ -233,6 +233,20 @@ function PF.Expand(msg)
     end
     msg = msg:gsub("OWN_NAME%(([^;()]*);([^()]*)%)", function(_, pl) return pl end)
     return msg
+end
+
+-- Safety net: whatever goes wrong while expanding (protected values, a missing unit, ...), the
+-- window must still show the Polish text. Fall back to dropping the unresolved placeholders
+-- rather than letting an error abort the quest/gossip frame that called us.
+function PF.Expand(msg)
+    local ok, result = pcall(expand, msg)
+    if ok then return result end
+    if type(msg) ~= "string" then return "" end
+    local name = UnitName("player") or ""
+    msg = msg:gsub("NEW_LINE", "\n"):gsub("%$[bB]", "\n"):gsub("YOUR_NAME", name):gsub("%$[nN]", name)
+    msg = msg:gsub("YOUR_GENDER%(([^;()]*);([^()]*)%)", "%1"):gsub("NPC_GENDER%(([^;()]*);([^()]*)%)", "%1")
+    msg = msg:gsub("OWN_NAME%(([^;()]*);([^()]*)%)", "%2")
+    return (msg:gsub("YOUR_RACE%d?", ""):gsub("YOUR_CLASS%d?", ""))
 end
 
 -- Translate a GameTooltip-family frame's lines in place by hashing each line's current text
