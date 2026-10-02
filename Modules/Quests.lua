@@ -462,9 +462,10 @@ local function ApplyTracker()
                         pl = translateObjectiveLine(text) or completionLineText(text)
                             or (q and numericCount == 1 and q[OBJECTIVES] ~= "" and PF.Expand(q[OBJECTIVES]))
                     end
-                    if pl and setIfChanged(fs, pl, "body") then
+                    -- objectives are drawn bold, like the quest title above them
+                    if pl and setIfChanged(fs, pl, "bold") then
                         needsRefresh = true
-                    elseif not pl and styleIfUntranslated(fs, "body") then
+                    elseif not pl and styleIfUntranslated(fs, "bold") then
                         needsRefresh = true
                     end
                 end

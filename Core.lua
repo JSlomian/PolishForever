@@ -57,7 +57,8 @@ function PF:SetFontChoice(key)
     end
     local use = chosen or PF.FontChoices[1]
     if chosen and PolishForeverDB then PolishForeverDB.font = key end
-    PF.Fonts.body, PF.Fonts.title = use.bodyPath, use.titlePath
+    -- "bold" = the bold face for body-sized text (tracker objectives); same file as "title"
+    PF.Fonts.body, PF.Fonts.title, PF.Fonts.bold = use.bodyPath, use.titlePath, use.titlePath
     return use
 end
 
