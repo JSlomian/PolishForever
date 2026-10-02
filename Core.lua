@@ -17,12 +17,12 @@ local FONT_DIR = "Interface\\AddOns\\" .. ADDON .. "\\Fonts\\"
 -- PF.SetText call picks the choice up the next time a window opens.
 PF.FontChoices = {
     -- first entry = default for new installs
-    { key = "alegreya", label = "Alegreya Sans", note = "closest to the original, very readable",
+    { key = "gentium", label = "Gentium Book Plus", note = "clean open serif, easy to read",
+      body = "GentiumBookPlus-Regular.ttf", title = "GentiumBookPlus-Bold.ttf" },
+    { key = "alegreya", label = "Alegreya Sans", note = "sturdy humanist sans, close to the original",
       body = "AlegreyaSans-Medium.ttf", title = "AlegreyaSans-Bold.ttf" },
     { key = "marcellus", label = "Marcellus", note = "flared serif, light strokes",
       body = "Marcellus-Regular.ttf", title = "Marcellus-Regular.ttf" },
-    { key = "gentium", label = "Gentium Book Plus", note = "clean open serif, easy to read",
-      body = "GentiumBookPlus-Regular.ttf", title = "GentiumBookPlus-Bold.ttf" },
     { key = "garamond", label = "EB Garamond", note = "elegant, small x-height",
       body = "EBGaramond-Body.ttf", title = "EBGaramond-Title.ttf" },
 }
