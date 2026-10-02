@@ -185,13 +185,25 @@ local function caseForm(entry, letter, female, fallback)
     return entry and entry[letter .. (female and 2 or 1)] or fallback
 end
 
+-- UnitSex can hand back a "secret" number (protected value, see PF.Hash) for NPC units while a
+-- quest/gossip window is open; comparing it throws and used to abort the whole quest window.
+-- Treat anything we can't read as "male" (the first form in every YOUR_GENDER/NPC_GENDER pair).
+local function isFemale(unit)
+    local ok, result = pcall(function()
+        local sex = UnitSex(unit)
+        if issecretvalue and issecretvalue(sex) then return false end
+        return sex == 3
+    end)
+    return ok and result or false
+end
+
 -- Expand player-dependent placeholders in stored Polish text.
 function PF.Expand(msg)
     if not msg or msg == "" then return "" end
     local name = UnitName("player") or ""
     local race = UnitRace("player") or ""
     local class = UnitClass("player") or ""
-    local female = UnitSex("player") == 3
+    local female = isFemale("player")
 
     -- raw Blizzard codes (gossip text keeps them) -> tokens
     msg = msg:gsub("%$[bB]", "NEW_LINE")
@@ -215,8 +227,10 @@ function PF.Expand(msg)
     msg = msg:gsub("YOUR_CLASS", function() return class end)
 
     msg = msg:gsub("YOUR_GENDER%(([^;()]*);([^()]*)%)", function(m, f) return female and f or m end)
-    local npcFemale = UnitSex("npc") == 3
-    msg = msg:gsub("NPC_GENDER%(([^;()]*);([^()]*)%)", function(m, f) return npcFemale and f or m end)
+    if msg:find("NPC_GENDER(", 1, true) then
+        local npcFemale = isFemale("npc") -- only looked up when the text actually needs it
+        msg = msg:gsub("NPC_GENDER%(([^;()]*);([^()]*)%)", function(m, f) return npcFemale and f or m end)
+    end
     msg = msg:gsub("OWN_NAME%(([^;()]*);([^()]*)%)", function(_, pl) return pl end)
     return msg
 end
