@@ -205,6 +205,12 @@ local function expand(msg)
     local class = UnitClass("player") or ""
     local female = isFemale("player")
 
+    -- Blizzard's own gender markup, kept as-is in gossip/quest text: "$g lad : lass;", "$gmister:miss;",
+    -- "$Ghis:her;" -- first form for a male player, second for a female one. Must run before the
+    -- generic $g -> YOUR_GENDER swap below, which only understands the YOUR_GENDER(m;f) spelling and
+    -- would otherwise leave "YOUR_GENDER lad : lass;" on screen.
+    msg = msg:gsub("%$[gG]%s*([^:;$]-)%s*:%s*([^;$]-)%s*;", function(m, f) return female and f or m end)
+
     -- raw Blizzard codes (gossip text keeps them) -> tokens
     msg = msg:gsub("%$[bB]", "NEW_LINE")
     msg = msg:gsub("%$[nN]", "YOUR_NAME")
