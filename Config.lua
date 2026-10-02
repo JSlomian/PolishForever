@@ -119,37 +119,66 @@ local function BuildPanel()
         end
     end
 
-    -- Font selector: pick one of PF.FontChoices (radio buttons, so it works on every client's
-    -- widget set). The preview line is drawn in the chosen font right away; windows already open
-    -- pick the new font up the next time they open.
+    -- Font selector: a dropdown over PF.FontChoices. The preview line is drawn in the chosen
+    -- font right away; windows already open pick the new font up the next time they open.
+    -- Two widget generations: the modern menu dropdown (WowStyle1DropdownTemplate + SetupMenu) when
+    -- the client has it, otherwise the classic UIDropDownMenu.
     local fontTitle = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     fontTitle:SetPoint("TOP", previous, "BOTTOM", 0, -20)
     fontTitle:SetPoint("LEFT", sub, "LEFT", 0, 0)
     fontTitle:SetText("Text font")
-    previous = fontTitle
 
     local preview = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-    panel.fontChecks = {}
     local function showPreview()
         local choice = PF:GetFontChoice()
         preview:SetFont(choice.bodyPath, 14, "")
         preview:SetText("Zażółć gęślą jaźń. Witaj, wędrowcze! Zabij dziesięć wilków i wróć po nagrodę.")
     end
-    local function selectFont(key)
-        PF:SetFontChoice(key)
-        for k, c in pairs(panel.fontChecks) do c:SetChecked(k == key) end
-        showPreview()
+
+    local function choiceText(c) return c.label .. " - " .. c.note end
+    local refreshFontDropdown = function() end
+    local dropdown
+
+    local okModern, modern = pcall(function()
+        local dd = CreateFrame("DropdownButton", "PolishForeverFontDropdown", panel, "WowStyle1DropdownTemplate")
+        dd:SetWidth(360)
+        dd:SetupMenu(function(_, root)
+            for _, c in ipairs(PF.FontChoices) do
+                root:CreateRadio(choiceText(c),
+                    function() return PF:GetFontChoice().key == c.key end,
+                    function() PF:SetFontChoice(c.key); showPreview() end)
+            end
+        end)
+        refreshFontDropdown = function() dd:GenerateMenu() end
+        return dd
+    end)
+    if okModern and modern then
+        dropdown = modern
+        dropdown:SetPoint("TOPLEFT", fontTitle, "BOTTOMLEFT", 0, -6)
+    else
+        dropdown = CreateFrame("Frame", "PolishForeverFontDropdown", panel, "UIDropDownMenuTemplate")
+        dropdown:SetPoint("TOPLEFT", fontTitle, "BOTTOMLEFT", -16, -4)
+        UIDropDownMenu_SetWidth(dropdown, 340)
+        UIDropDownMenu_Initialize(dropdown, function()
+            for _, c in ipairs(PF.FontChoices) do
+                local info = UIDropDownMenu_CreateInfo()
+                info.text = choiceText(c)
+                info.checked = PF:GetFontChoice().key == c.key
+                info.func = function()
+                    PF:SetFontChoice(c.key)
+                    UIDropDownMenu_SetText(dropdown, choiceText(c))
+                    showPreview()
+                end
+                UIDropDownMenu_AddButton(info)
+            end
+        end)
+        refreshFontDropdown = function()
+            UIDropDownMenu_SetText(dropdown, choiceText(PF:GetFontChoice()))
+        end
     end
-    for i, choice in ipairs(PF.FontChoices) do
-        local check = CreateFrame("CheckButton", "PolishForeverFont" .. choice.key, panel, "UICheckButtonTemplate")
-        check:SetSize(24, 24)
-        check:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 0, i == 1 and -4 or -2)
-        _G[check:GetName() .. "Text"]:SetText(choice.label .. "  |cff888888" .. choice.note .. "|r")
-        check:SetScript("OnClick", function() selectFont(choice.key) end)
-        panel.fontChecks[choice.key] = check
-        previous = check
-    end
-    preview:SetPoint("TOPLEFT", previous, "BOTTOMLEFT", 4, -10)
+    panel.fontDropdown = dropdown
+
+    preview:SetPoint("TOPLEFT", dropdown, "BOTTOMLEFT", okModern and 4 or 20, -10)
     preview:SetWidth(520)
     preview:SetJustifyH("LEFT")
     previous = preview
@@ -178,8 +207,7 @@ local function BuildPanel()
             check:SetChecked(PF:IsEnabled(name))
         end
         if panel.groupCheck then panel.groupCheck:SetChecked(groupChecked()) end
-        local activeFont = PF:GetFontChoice()
-        for key, check in pairs(panel.fontChecks) do check:SetChecked(key == activeFont.key) end
+        refreshFontDropdown()
         showPreview()
         for name, subs in pairs(panel.subChecks or {}) do
             for key, subCheck in pairs(subs) do
