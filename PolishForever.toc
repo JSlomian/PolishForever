@@ -20,6 +20,7 @@ Data\Places.lua
 Data\Misc.lua
 Data\Creatures.lua
 Data\Books.lua
+Data\Speech.lua
 Capture.lua
 Modules\Quests.lua
 Modules\Gossip.lua
@@ -29,6 +30,7 @@ Modules\Abilities.lua
 Modules\Items.lua
 Modules\Creatures.lua
 Modules\Books.lua
+Modules\Speech.lua
 Modules\Menus.lua
 Debug.lua
 Config.lua

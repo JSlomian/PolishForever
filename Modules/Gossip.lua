@@ -31,6 +31,7 @@ local function Clean(text)
     text = text:gsub("%$[BbNnRrCc]%$?", "")
     return text
 end
+PF.CleanGossip = Clean -- shared with Modules/Speech.lua: NPC chat lines are keyed the same way
 
 -- Wrapped in pcall (same reasoning as PF.Hash in Core.lua): some UI text is now a WoW "secret
 -- value" (protected/opaque string) that throws on any string operation. Unlikely for plain NPC
@@ -121,6 +122,16 @@ local function installControls()
     end
 end
 
+-- The quest window's greeting ("Hello there, $c. ...", shown when an NPC offers several quests)
+-- is a plain GreetingText label Blizzard fills in QuestFrameGreetingPanel_OnShow; same lookup as a
+-- gossip greeting (PF.Gossip holds the quest_greeting + npc_trainer_greeting lines too).
+local function ApplyQuestGreeting()
+    if not PF:IsEnabled("Gossip") then return end
+    local fs = _G.GreetingText
+    local text = GetGreetingText and GetGreetingText()
+    if fs and fs.SetText and text and text ~= "" then Translate(fs, text, "greeting") end
+end
+
 local function Apply()
     if not PF:IsEnabled("Gossip") then return end
     local panel = GossipFrame and GossipFrame.GreetingPanel
@@ -142,10 +153,12 @@ function Gossip:OnEnable()
     if events then return end
     events = CreateFrame("Frame")
     events:RegisterEvent("GOSSIP_SHOW")
-    events:SetScript("OnEvent", function()
+    events:RegisterEvent("QUEST_GREETING")
+    events:SetScript("OnEvent", function(_, event)
         -- let Blizzard populate the frame first
-        C_Timer.After(0, Apply)
-        C_Timer.After(0.15, Apply)
+        local fn = (event == "QUEST_GREETING") and ApplyQuestGreeting or Apply
+        C_Timer.After(0, fn)
+        C_Timer.After(0.15, fn)
     end)
     installControls()
 end
