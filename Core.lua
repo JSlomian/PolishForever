@@ -16,14 +16,15 @@ local FONT_DIR = "Interface\\AddOns\\" .. ADDON .. "\\Fonts\\"
 -- coverage). The Config panel lists these; PF.Fonts always holds the active pair, so every
 -- PF.SetText call picks the choice up the next time a window opens.
 PF.FontChoices = {
-    { key = "garamond", label = "EB Garamond", note = "elegant, small x-height",
-      body = "EBGaramond-Body.ttf", title = "EBGaramond-Title.ttf" },
-    { key = "marcellus", label = "Marcellus", note = "flared, closest to the original WoW look",
-      body = "Marcellus-Regular.ttf", title = "Marcellus-Regular.ttf" },
-    { key = "alegreya", label = "Alegreya Sans", note = "sturdy humanist sans, most readable",
+    -- first entry = default for new installs
+    { key = "alegreya", label = "Alegreya Sans", note = "closest to the original, very readable",
       body = "AlegreyaSans-Medium.ttf", title = "AlegreyaSans-Bold.ttf" },
+    { key = "marcellus", label = "Marcellus", note = "flared serif, light strokes",
+      body = "Marcellus-Regular.ttf", title = "Marcellus-Regular.ttf" },
     { key = "gentium", label = "Gentium Book Plus", note = "clean open serif, easy to read",
       body = "GentiumBookPlus-Regular.ttf", title = "GentiumBookPlus-Bold.ttf" },
+    { key = "garamond", label = "EB Garamond", note = "elegant, small x-height",
+      body = "EBGaramond-Body.ttf", title = "EBGaramond-Title.ttf" },
 }
 PF.Fonts = {}
 
@@ -46,16 +47,18 @@ function PF:GetFontChoice()
     return PF.FontChoices[1]
 end
 
--- Make `key` the active font (and remember it). Unknown keys fall back to the first choice.
+-- Make `key` the active font and remember it. An unknown/missing key falls back to the first
+-- choice (the default) without saving, so a later change of default still reaches players who
+-- never picked one.
 function PF:SetFontChoice(key)
+    local chosen
     for _, c in ipairs(PF.FontChoices) do
-        if c.key == key then
-            if PolishForeverDB then PolishForeverDB.font = key end
-            PF.Fonts.body, PF.Fonts.title = c.bodyPath, c.titlePath
-            return c
-        end
+        if c.key == key then chosen = c break end
     end
-    return self:SetFontChoice(PF.FontChoices[1].key)
+    local use = chosen or PF.FontChoices[1]
+    if chosen and PolishForeverDB then PolishForeverDB.font = key end
+    PF.Fonts.body, PF.Fonts.title = use.bodyPath, use.titlePath
+    return use
 end
 
 PF:SetFontChoice(PF.FontChoices[1].key) -- until the saved choice is read at login
