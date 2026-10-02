@@ -36,7 +36,7 @@ end
 -- value" (protected/opaque string) that throws on any string operation. Unlikely for plain NPC
 -- gossip text, but cheap insurance against a translation-disabling error the moment Blizzard
 -- extends that protection further.
-local function Lookup(english)
+local function Lookup(english, kind)
     local ok, result = pcall(function()
         if not english or english == "" or english:sub(-2) == PF.NBSP then return end
         local clean = Clean(english)
@@ -55,6 +55,11 @@ local function Lookup(english)
             local text2 = PF.Text
             pl = text2 and text2.UI and text2.UI[PF.Hash(clean)]
         end
+        if not pl and PF.Capture then
+            -- untranslated: remember it (greeting or option) with the NPC for the next data build
+            local npc, name = PF.CaptureNpc()
+            PF.Capture("gossip", clean, { sub = kind, npc = npc, name = name })
+        end
         return pl
     end)
     return ok and result or nil
@@ -69,7 +74,7 @@ local previewScope = PF.NewPreviewScope()
 local lastEnglish, lastPolish
 
 local function Translate(fs, english, kind)
-    local pl = Lookup(english)
+    local pl = Lookup(english, "greeting")
     if pl then
         local text = PF.Expand(pl) .. PF.NBSP
         previewScope.ApplyText(fs, text, kind)
@@ -90,7 +95,7 @@ local function ApplyOption(button)
         return p, s, t
     end)
     if not ok then return end
-    local pl = Lookup(plain)
+    local pl = Lookup(plain, "option")
     if pl and button.GetFontString then
         local fs = button:GetFontString()
         if fs then

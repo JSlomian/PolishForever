@@ -72,10 +72,28 @@ function PF:SetSubEnabled(name, key, on)
     PolishForeverDB.subs[name][key] = on and true or false
 end
 
+-- Every module and sub-option ships enabled. A saved `false` outranks that default, so when the
+-- shipped defaults change (bump this number) everyone's saved toggles are reset to all-on once;
+-- after that their own choices stick again. /pl enableall does the same on demand.
+local DEFAULTS_VERSION = 2
+
+function PF:EnableAll()
+    PolishForeverDB.modules = {}
+    PolishForeverDB.subs = {}
+    PolishForeverDB.noCapture = nil
+    for name, value in pairs(defaults.modules) do
+        PolishForeverDB.modules[name] = value
+    end
+end
+
 local function InitDB()
     PolishForeverDB = PolishForeverDB or {}
     PolishForeverDB.modules = PolishForeverDB.modules or {}
     PolishForeverDB.subs = PolishForeverDB.subs or {}
+    if (PolishForeverDB.defaultsVersion or 0) < DEFAULTS_VERSION then
+        PF:EnableAll()
+        PolishForeverDB.defaultsVersion = DEFAULTS_VERSION
+    end
     for name, value in pairs(defaults.modules) do
         if PolishForeverDB.modules[name] == nil then
             PolishForeverDB.modules[name] = value
@@ -581,6 +599,13 @@ SlashCmdList.POLISHFOREVER = function(rawInput)
         status()
     elseif a == "dump" then
         PF:Dump()
+    elseif a == "enableall" then
+        PF:EnableAll()
+        PF:Print("everything enabled -- /reload to apply")
+    elseif a == "missing" then
+        PF:CaptureStatus()
+    elseif a == "capture" and (b == "on" or b == "off") then
+        PF:SetCapture(b == "on")
     else
         for _, name in ipairs(PF.order) do
             if name:lower() == a then
@@ -593,6 +618,6 @@ SlashCmdList.POLISHFOREVER = function(rawInput)
                 return
             end
         end
-        PF:Print("usage: /pl [config] | /pl status | /pl <module> on|off")
+        PF:Print("usage: /pl [config] | /pl status | /pl enableall | /pl missing | /pl capture on|off | /pl <module> on|off")
     end
 end

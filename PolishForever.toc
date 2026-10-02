@@ -4,7 +4,7 @@
 ## Version: @project-version@
 ## Author: Jan Słomian
 ## X-License: MIT (code) / CC-BY-4.0 (translation data, see LICENSE)
-## SavedVariables: PolishForeverDB
+## SavedVariables: PolishForeverDB, PolishForeverCapture
 ## X-Category: Localization
 ## X-Curse-Project-ID: 1706401
 
@@ -19,6 +19,7 @@ Data\UI.lua
 Data\Places.lua
 Data\Misc.lua
 Data\Creatures.lua
+Capture.lua
 Modules\Quests.lua
 Modules\Gossip.lua
 Modules\Talents.lua
