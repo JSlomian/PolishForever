@@ -78,7 +78,8 @@ events:SetScript("OnEvent", function()
     local ok, text, title, page = pcall(function()
         return ItemTextGetText(), ItemTextGetItem and ItemTextGetItem(), ItemTextGetPage and ItemTextGetPage()
     end)
-    if ok then PF.Capture("book", text, { title = title, page = page }) end
+    -- "\r" dropped: the Books table is keyed by the hash of the text without it (see Modules/Books.lua)
+    if ok and type(text) == "string" then PF.Capture("book", (text:gsub("\r", "")), { title = title, page = page }) end
 end)
 
 function PF:CaptureStatus()
