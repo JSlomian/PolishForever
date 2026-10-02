@@ -19,11 +19,12 @@ local Creatures = {
     },
 }
 
--- Data note: PF.Text.Creatures may be an empty table for a while -- the vmangos-sourced name
--- list (data/vmangos_npc_race.csv, ~10k names) still needs de-duping/filtering and an actual
--- translation pass, same pipeline shape as Items/Spells. Everything below is safe to ship ahead
--- of that data existing: hash-mismatch (or a missing/empty table) just leaves names in English,
--- same principle as every other module here.
+-- Data note: PF.Text.Creatures holds NPC names AND the "<Title>" line under them (kept with its
+-- angle brackets, so the whole tooltip line hashes exactly). Source: vmangos creature_template
+-- (tools/vmangos_db.py -> data/text/creatures_english.csv -> text_merge.py -> translate_batch.py
+-- --group Creatures -> build_addon_data.py). It may be empty until that translation pass has run;
+-- everything below is safe to ship ahead of that: hash-mismatch (or a missing/empty table) just
+-- leaves names in English, same principle as every other module here.
 
 -- Tooltip: same pattern as Items/Abilities in Core.lua -- hook the actual SetUnit setter (this
 -- client errors on HookScript("OnTooltipSetUnit", ...), see PF.HookTooltipSetters) plus
