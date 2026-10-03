@@ -355,7 +355,7 @@ function PF.SetText(fs, text, kind)
     end
     local orig = fs.pfFont
     local size = (orig[2] or 12) + (KIND_SIZE_BOOST[kind] or 0)
-    if not fs:SetFont(PF.Fonts[kind or "body"], size, orig[3]) then
+    if not fs:SetFont(PF.Fonts[kind or "body"] or PF.Fonts.body, size, orig[3]) then
         fs:SetFont(orig[1], orig[2] or 12, orig[3]) -- shipped font missing: keep the stock one
     end
     fs:SetText(text)

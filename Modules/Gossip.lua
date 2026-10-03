@@ -129,7 +129,7 @@ local function ApplyQuestGreeting()
     if not PF:IsEnabled("Gossip") then return end
     local fs = _G.GreetingText
     local text = GetGreetingText and GetGreetingText()
-    if fs and fs.SetText and text and text ~= "" then Translate(fs, text, "greeting") end
+    if fs and fs.SetText and text and text ~= "" then Translate(fs, text, "body") end
 end
 
 local function Apply()
