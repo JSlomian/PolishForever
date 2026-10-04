@@ -7,11 +7,8 @@ local _, PF = ...
 local Creatures = {
     desc = "NPC/creature names: tooltips, quest tracker/log kill-counters, nameplates and unit frames",
     label = "Names",
-    -- The hooking code is done and safe to ship, but PF.Text.Creatures is still an empty table
-    -- (see the data note below) -- there's nothing to actually show yet, so this stays flagged
-    -- "(not implemented yet)" in Config.lua until the NPC-name translation pass lands, same as
-    -- it would look to a player if the feature genuinely didn't exist.
-    implemented = false,
+    -- Names + <Title> lines translated (10.4k entries from the Haiku + Sonnet pipeline).
+    implemented = true,
     subs = {
         { key = "tooltip", label = "Tooltips" },
         { key = "tracker", label = "Tracker & log kill-counter" },
