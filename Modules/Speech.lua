@@ -40,16 +40,25 @@ local function translate(msg, sender)
     local pl = find(PF.CleanGossip(plain))
     if not pl then return end
     pl = PF.Expand(pl)
-    if name then pl = pl:gsub("%%s", function() return name end) end
+    -- the speaker's name: the translated one when Names (dialog option) is on, as on its nameplate
+    local shown = name and PF.NpcName and PF.NpcName(name) or name
+    if name then pl = pl:gsub("%%s", function() return shown end) end
     return pl
 end
 
 -- Never throws and never blocks: any problem (a protected "secret" string, missing data) returns
--- false with the arguments unchanged.
+-- false with the arguments unchanged. The speaker (arg2) is swapped for its translated name only
+-- when Names -> "NPC name in dialogs & chat" is on; every other argument passes through as is.
 local function filter(_, _, msg, ...)
     if not PF:IsEnabled("Speech") then return false end
-    local ok, pl = pcall(translate, msg, (...))
-    if ok and pl then return false, pl, ... end
+    local sender = ...
+    local ok, pl = pcall(translate, msg, sender)
+    local okName, shownName = pcall(function() return PF.NpcName and PF.NpcName(sender) end)
+    if not okName then shownName = nil end
+    if ok and pl then
+        if shownName then return false, pl, shownName, select(2, ...) end
+        return false, pl, ...
+    end
     return false
 end
 

@@ -13,8 +13,35 @@ local Creatures = {
         { key = "tooltip", label = "Tooltips" },
         { key = "tracker", label = "Tracker & log kill-counter" },
         { key = "nameplate", label = "Nameplates & frames" },
+        { key = "dialog", label = "NPC name in dialogs & chat" },
     },
 }
+
+-- Translated name for an NPC (nil if Names or its "dialog" sub-option is off, or no translation).
+-- Shared with Modules/Speech.lua so a speaker's name in chat matches the one on its nameplate.
+function PF.NpcName(name)
+    if type(name) ~= "string" or name == "" then return nil end
+    if not (PF:IsEnabled("Creatures") and PF:IsSubEnabled("Creatures", "dialog")) then return nil end
+    local ok, pl = pcall(function()
+        local t = PF.Text and PF.Text.Creatures
+        return t and t[PF.Hash(name)]
+    end)
+    if ok and pl and pl ~= name then return pl end
+end
+
+-- The NPC's name in the gossip / quest windows' header.
+local function applyDialogName()
+    if not (PF:IsEnabled("Creatures") and PF:IsSubEnabled("Creatures", "dialog")) then return end
+    for _, fs in ipairs({ _G.QuestFrameNpcNameText, _G.GossipFrameNpcNameText }) do
+        if fs and fs.GetText then
+            local pl = PF.NpcName(fs:GetText())
+            if pl then pcall(PF.SetText, fs, pl, "title") end
+        end
+    end
+    local g = _G.GossipFrame
+    local tc = g and g.TitleContainer
+    if tc and PF.Text and PF.Text.Creatures then pcall(PF.TranslateFontStrings, tc, PF.Text.Creatures) end
+end
 
 -- Data note: PF.Text.Creatures holds NPC names AND the "<Title>" line under them (kept with its
 -- angle brackets, so the whole tooltip line hashes exactly). Source: vmangos creature_template
@@ -70,6 +97,15 @@ function Creatures:OnEnable()
     end
     -- Let Blizzard populate the frame/nameplate first.
     events:SetScript("OnEvent", function() C_Timer.After(0, applyFrames) end)
+
+    local dialogEvents = CreateFrame("Frame")
+    for _, e in ipairs({ "GOSSIP_SHOW", "QUEST_GREETING", "QUEST_DETAIL", "QUEST_PROGRESS", "QUEST_COMPLETE" }) do
+        pcall(dialogEvents.RegisterEvent, dialogEvents, e)
+    end
+    dialogEvents:SetScript("OnEvent", function()
+        C_Timer.After(0, applyDialogName)
+        C_Timer.After(0.15, applyDialogName)
+    end)
 
     local installed = {}
     if GameTooltip then
