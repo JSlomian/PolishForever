@@ -85,9 +85,41 @@ local function applyFrames()
     end
 end
 
+-- Blizzard rewrites the name fontstring on every status change (threat, health colour, combat,
+-- raid marker, ...) via these refresh functions, which reverts it to English. Re-translate right
+-- after each rewrite instead of relying on the handful of events above.
+local function translateNameFS(fs)
+    if not (PF:IsEnabled("Creatures") and PF:IsSubEnabled("Creatures", "nameplate")) then return end
+    if not (fs and fs.GetText and PF.Text and PF.Text.Creatures) then return end
+    local text = fs:GetText()
+    local pl = text and PF.Text.Creatures[PF.Hash(text)]
+    if pl and pl ~= text then PF.SetText(fs, pl, "body") end
+end
+
+local function hookNameRefresh()
+    -- Nameplates / compact unit frames
+    if _G.CompactUnitFrame_UpdateName then
+        hooksecurefunc("CompactUnitFrame_UpdateName", function(frame)
+            if frame then translateNameFS(frame.name) end
+        end)
+    end
+    -- Target / focus frames
+    for _, fn in ipairs({ "TargetFrame_Update", "TargetFrame_CheckFaction", "UnitFrame_Update" }) do
+        if _G[fn] then
+            hooksecurefunc(fn, function()
+                for _, fname in ipairs({ "TargetFrame", "FocusFrame" }) do
+                    local f = _G[fname]
+                    if f and f:IsShown() then translateNameFS(f.name or _G[fname .. "TextureFrameName"]) end
+                end
+            end)
+        end
+    end
+end
+
 local events
 function Creatures:OnEnable()
     if events then return end
+    hookNameRefresh()
     events = CreateFrame("Frame")
     for _, e in ipairs({
         "PLAYER_TARGET_CHANGED", "PLAYER_FOCUS_CHANGED", "UNIT_NAME_UPDATE",
