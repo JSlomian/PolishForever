@@ -426,10 +426,10 @@ function translateObjectiveLine(text)
         local creaturesOn = PF:IsEnabled("Creatures") and PF:IsSubEnabled("Creatures", "tracker")
         local pl = (text2 and text2.Items and text2.Items[PF.Hash(rest)])
             or (creaturesOn and text2 and text2.Creatures and text2.Creatures[PF.Hash(rest)])
-        -- Kill objectives ("0/8 Wretched Zombie slain") read "Zabito: Wretched Zombie 0/8", the same
-        -- wording as the yellow on-screen message (see Modules/Messages.lua / UI "%s slain: %d/%d").
+        -- Kill objectives keep the game's order, "0/8 Wretched Zombie slain" -> "0/8 Nędzny Zombie zabito"
+        -- (the yellow on-screen message uses "Zabito: Name y/z", see Modules/Messages.lua).
         if suffix == " slain" then
-            return "Zabito: " .. (pl or rest) .. " " .. strtrim(counter) .. (bracket or "")
+            return counter .. (pl or rest) .. " zabito" .. (bracket or "")
         end
         if pl then return counter .. pl .. suffix .. (bracket or "") end
     end)
