@@ -293,7 +293,9 @@ local function applyEntry(entry, text)
     if strs then
         for _, i in ipairs(strs) do
             local v = caps[i]
-            if v == "" or (v:find("%s") and translateCapture(v) == v) or #v > 40 then return nil end
+            -- hyperlinks / colour codes ("|cff...|Hitem:..|h[Name]|h|r") are values, not sentences
+            if v == "" then return nil end
+            if v:sub(1, 1) ~= "|" and ((v:find("%s") and translateCapture(v) == v) or #v > 40) then return nil end
         end
     end
     local dur = entry[2]
@@ -400,6 +402,21 @@ function PF.MatchTemplate(text)
         return pl
     end)
     return ok and result or nil
+end
+
+-- Item/spell names inside chat hyperlinks: "|Hitem:123|h[Prairie Wolf Paw]|h" -> Polish name.
+-- The link itself (ids, colours) is left alone; only the visible [name] changes.
+function PF.TranslateLinks(msg)
+    if type(msg) ~= "string" then return msg end
+    local ok, out = pcall(function()
+        return (msg:gsub("(|H(%a+):[^|]*|h)%[(.-)%](|h)", function(pre, kind, name, post)
+            local t = PF.Text or {}
+            local tbl = (kind == "item" and t.Items) or ((kind == "spell" or kind == "enchant" or kind == "talent") and t.Spells)
+            local pl = tbl and tbl[PF.Hash(name)]
+            if pl then return pre .. "[" .. pl .. "]" .. post end
+        end))
+    end)
+    return ok and out or msg
 end
 
 function PF.TranslateTooltipLines(tooltip, table)

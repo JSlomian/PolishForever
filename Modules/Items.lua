@@ -64,6 +64,21 @@ function Items:OnEnable()
     for _, fn in ipairs({ "LootFrame_Update", "LootFrame_UpdateButton", "GroupLootFrame_OpenNewFrame" }) do
         if type(_G[fn]) == "function" then hooksecurefunc(fn, lootRefresh) end
     end
+    -- Loot / crafting lines in chat: translate the item link names and the surrounding sentence.
+    if ChatFrame_AddMessageEventFilter then
+        local function lootFilter(_, _, msg, ...)
+            if not PF:IsEnabled("Items") or type(msg) ~= "string" then return false end
+            local ok, out = pcall(function()
+                local m = PF.TranslateLinks(msg)
+                return PF.MatchTemplate(m) or m
+            end)
+            if ok and out and out ~= msg then return false, out, ... end
+            return false
+        end
+        for _, ev in ipairs({ "CHAT_MSG_LOOT", "CHAT_MSG_TRADESKILLS" }) do
+            ChatFrame_AddMessageEventFilter(ev, lootFilter)
+        end
+    end
     local n = 0
     for _ in pairs(PF.Text.Items or {}) do n = n + 1 end
     PF:Print(("Items: %d translations loaded, hooked %s"):format(n, table.concat(installed, ", ")))

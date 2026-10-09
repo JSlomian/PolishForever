@@ -10,6 +10,17 @@ local Messages = {
     implemented = true,
 }
 
+-- "Prairie Wolf Paw: 3/6" (item objectives; the template "%s: %d/%d" is too generic for
+-- PF.MatchTemplate) -- translate the name part from the item/creature tables.
+local function translateCounterLine(msg)
+    local name, a, b = msg:match("^(.+): (%d+)/(%d+)$")
+    if not name then return nil end
+    local t = PF.Text or {}
+    local h = PF.Hash(name)
+    local pl = (t.Items and t.Items[h]) or (t.Creatures and t.Creatures[h])
+    if pl then return pl .. ": " .. a .. "/" .. b end
+end
+
 local hooked = false
 
 function Messages:OnEnable()
@@ -21,6 +32,7 @@ function Messages:OnEnable()
     frame.AddMessage = function(self, msg, ...)
         if PF:IsEnabled("Messages") and type(msg) == "string" then
             local ok, pl = pcall(PF.MatchTemplate, msg)
+            if not (ok and pl) then ok, pl = pcall(translateCounterLine, msg) end
             if ok and pl then msg = pl end
         end
         return orig(self, msg, ...)
