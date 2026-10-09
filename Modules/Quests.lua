@@ -374,9 +374,32 @@ local OBJ_SUFFIXES = { " slain", " killed", " collected", " looted", " used", " 
 function translateObjectiveLine(text)
     local ok, result = pcall(function()
         if not text then return nil end
+        local text2 = PF.Text
+        -- Counter after the name instead of before it: "Wretched Zombie slain: 0/8" (kills) and
+        -- "Prairie Wolf Paw: 0/6" (items), optionally followed by " (Complete)".
+        do
+            local core, brk = text, ""
+            local base2, word2 = text:match("^(.-)%s+%((.-)%)$")
+            if base2 then
+                core = base2
+                local plWord = word2 == "Complete" and "Ukończone" or (text2 and text2.UI and text2.UI[PF.Hash(word2)])
+                brk = " (" .. (plWord or word2) .. ")"
+            end
+            local creaturesOn2 = PF:IsEnabled("Creatures") and PF:IsSubEnabled("Creatures", "tracker")
+            local function lookup(name)
+                return (text2 and text2.Items and text2.Items[PF.Hash(name)])
+                    or (creaturesOn2 and text2 and text2.Creatures and text2.Creatures[PF.Hash(name)])
+            end
+            local nm, a, b = core:match("^(.-) slain: (%d+)/(%d+)$")
+            if nm then return "Zabito: " .. (lookup(nm) or nm) .. " " .. a .. "/" .. b .. brk end
+            local nm2, a2, b2 = core:match("^(.+): (%d+)/(%d+)$")
+            if nm2 then
+                local pl2 = lookup(nm2)
+                if pl2 then return pl2 .. ": " .. a2 .. "/" .. b2 .. brk end
+            end
+        end
         local counter, rest = text:match("^(%d+/%d+%s+)(.*)$")
         if not counter then return nil end
-        local text2 = PF.Text
         -- A finished objective gets a trailing " (Complete)" bracket appended (confirmed via
         -- screenshot: "4/4 Vicious Night Web Spider Venom (Complete)") -- this sits *after* any
         -- OBJ_SUFFIXES verb and wasn't stripped at all, so the whole rest-of-string never
@@ -386,7 +409,7 @@ function translateObjectiveLine(text)
         local bracket
         if base then
             rest = base
-            local plWord = text2 and text2.UI and text2.UI[PF.Hash(bracketWord)]
+            local plWord = bracketWord == "Complete" and "Ukończone" or (text2 and text2.UI and text2.UI[PF.Hash(bracketWord)])
             bracket = " (" .. (plWord or bracketWord) .. ")"
         end
         local suffix = ""
@@ -403,6 +426,11 @@ function translateObjectiveLine(text)
         local creaturesOn = PF:IsEnabled("Creatures") and PF:IsSubEnabled("Creatures", "tracker")
         local pl = (text2 and text2.Items and text2.Items[PF.Hash(rest)])
             or (creaturesOn and text2 and text2.Creatures and text2.Creatures[PF.Hash(rest)])
+        -- Kill objectives ("0/8 Wretched Zombie slain") read "Zabito: Wretched Zombie 0/8", the same
+        -- wording as the yellow on-screen message (see Modules/Messages.lua / UI "%s slain: %d/%d").
+        if suffix == " slain" then
+            return "Zabito: " .. (pl or rest) .. " " .. strtrim(counter) .. (bracket or "")
+        end
         if pl then return counter .. pl .. suffix .. (bracket or "") end
     end)
     return ok and result or nil

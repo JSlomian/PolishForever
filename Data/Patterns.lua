@@ -1754,7 +1754,7 @@ PF.Patterns = {
 {"^(.-) missed (.-)%.$",false,{1,2},1," chybia ",2,"."},
 {"^(.-) misses (.-)%.$",false,{1,2},1," chybia ",2,"."},
 {"^(.-) says:\\32$",false,{1},1," mówi:\\32"},
-{"^(.-) slain: ([%d%.,%-]+)/([%d%.,%-]+)$",false,{1},1," pokonane: ",2,"/",3},
+{"^(.-) slain: ([%d%.,%-]+)/([%d%.,%-]+)$",false,{1},"Zabito: ",1," ",2,"/",3},
 {"^(.-) yd range$",false,{1},1," jdy zasięg"},
 {"^(.-)'s Butler$",false,{1},"Lokaj ",1},
 {"^(.-)'s Hatred$",false,{1},"Nienawiść ",1},
