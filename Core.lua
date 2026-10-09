@@ -260,6 +260,148 @@ end
 -- commonly a spell/item description whose numbers Blizzard has already substituted at render
 -- time, when our stored text still carries the raw $s1-style token) simply don't hash-match
 -- and are left in English -- no separate filtering needed, the lookup is safe by construction.
+-- Text with the live values already filled in ("Requires Cooking (1)", "up to 3 additional...")
+-- can't hash-match the stored English template ("Requires %s (%d)"). Data/Patterns.lua (built by
+-- tools/build_patterns.py) holds a Lua pattern + the Polish text as parts for every such template;
+-- captured values (numbers, names, durations) are written into the Polish text. Bucketed by the
+-- first 8 bytes of the English literal prefix; bucket "" holds templates that start with a value.
+local PATTERN_KEY = 8
+local DURATION_WORDS = { { " sec", " sek" }, { " seconds", " sek" }, { " min", " min" }, { " minutes", " min" }, { " hour", " godz." }, { " hr", " godz." },
+                         { " days", " dni" }, { " day", " dzień" } }
+local ITEM_PREFIXES = { ["Use: "] = "Użycie: ", ["Equip: "] = "Wyposażenie: ",
+                        ["Chance on hit: "] = "Szansa przy trafieniu: " }
+local templateCache, templateCacheSize = {}, 0
+
+-- A captured value that is a name (skill, item, creature, place...) gets translated too.
+local CAPTURE_TABLES = { "Skills", "Spells", "Items", "Creatures", "Places", "UI", "Misc" }
+local function translateCapture(v)
+    if v == "" or not v:find("%a") then return v end
+    for _, name in ipairs(CAPTURE_TABLES) do
+        local tbl = PF.Text and PF.Text[name]
+        local pl = tbl and tbl[PF.Hash(v)]
+        if pl then return pl end
+    end
+    return v
+end
+
+local function applyEntry(entry, text)
+    local caps = { text:match(entry[1]) }
+    if #caps == 0 then return nil end
+    -- Free-text values (from %s) must be a single word or a name we can translate; otherwise the
+    -- template just matched an unrelated sentence and the result would be half English.
+    local strs = entry[3]
+    if strs then
+        for _, i in ipairs(strs) do
+            local v = caps[i]
+            if v == "" or (v:find("%s") and translateCapture(v) == v) or #v > 40 then return nil end
+        end
+    end
+    local dur = entry[2]
+    if dur then
+        for _, i in ipairs(dur) do
+            local v = caps[i]
+            if v then
+                for _, w in ipairs(DURATION_WORDS) do v = v:gsub(w[1] .. "%f[%A]", w[2]) end
+                caps[i] = v
+            end
+        end
+    end
+    local out = {}
+    for i = 4, #entry do
+        local p = entry[i]
+        out[#out + 1] = type(p) == "number" and translateCapture(caps[p] or "") or p
+    end
+    return table.concat(out)
+end
+
+local function matchTemplateRaw(text)
+    local patterns = PF.Patterns
+    if not patterns then return nil end
+    for _, bucket in ipairs({ patterns[text:sub(1, PATTERN_KEY)] or false, patterns[""] or false }) do
+        if bucket then
+            for _, entry in ipairs(bucket) do
+                local pl = applyEntry(entry, text)
+                if pl then return pl end
+            end
+        end
+    end
+end
+
+-- Item tooltip words the game data has no usable form for (armor/weapon subtype, slot-adjacent
+-- labels). Looked up exactly; checked before the generic UI tables, whose entries for the same
+-- English word are often the material or item rather than the tooltip label.
+local ITEM_WORDS = {
+    Cloth = "Materiał", Leather = "Skóra", Mail = "Kolczuga", Plate = "Płyta", Shield = "Tarcza",
+    Libram = "Libram", Idol = "Idol", Totem = "Totem", Sigil = "Pieczęć", Relic = "Relikwia",
+    Sword = "Miecz", Axe = "Topór", Mace = "Buława", Dagger = "Sztylet", Staff = "Kostur",
+    Polearm = "Broń drzewcowa", Bow = "Łuk", Crossbow = "Kusza", Gun = "Broń palna", Wand = "Różdżka",
+    ["Fist Weapon"] = "Broń pięściowa", Thrown = "Broń miotana", ["Fishing Pole"] = "Wędka",
+    Miscellaneous = "Różne", ["One-Hand"] = "Jednoręczna", ["Two-Hand"] = "Dwuręczna",
+    ["Main Hand"] = "Główna ręka", ["Off Hand"] = "Druga ręka", ["Held In Off-hand"] = "Trzymane w drugiej ręce",
+    Head = "Głowa", Neck = "Szyja", Shoulder = "Ramiona", Back = "Plecy", Chest = "Tors", Shirt = "Koszula",
+    Tabard = "Tabard", Wrist = "Nadgarstki", Hands = "Dłonie", Waist = "Pas", Legs = "Nogi", Feet = "Stopy",
+    Finger = "Palec", Trinket = "Talizman", Ranged = "Dystansowa", Ammo = "Amunicja", Quiver = "Kołczan",
+    Bag = "Torba",
+}
+-- "Sell Price:" and other labels with a colon the game appends to a string we hold without it.
+local LABEL_TABLES = { "UI", "Misc", "Items", "Skills" }
+
+local function translateWord(word)
+    if ITEM_WORDS[word] then return ITEM_WORDS[word] end
+    for _, name in ipairs(LABEL_TABLES) do
+        local tbl = PF.Text and PF.Text[name]
+        local pl = tbl and tbl[PF.Hash(word)]
+        if pl then return pl end
+    end
+end
+
+local function translateLabelLine(text)
+    local pl = translateWord(text)
+    if pl then return pl end
+    local base = text:match("^(.-):%s*$")
+    if base then
+        pl = translateWord(base)
+        if pl then return pl .. ":" end
+    end
+    -- "Use: Stuns target Worgen for 4 sec. (5 Min Cooldown)": translate the part before the cooldown
+    local head, cd = text:match("^(.-)%s*(%b())$")
+    if head and cd and cd:find("Cooldown%)$") then
+        local v = cd:match("%((.-) Cooldown%)")
+        local trHead = PF.MatchTemplate(head)
+        if trHead and v then
+            v = v:gsub("Min", "min"):gsub("Sec", "sek"):gsub("Hr", "godz.")
+            return trHead .. " (Czas odnowienia: " .. v .. ")"
+        end
+    end
+end
+
+-- Returns the Polish text for a line whose values were already substituted, or nil.
+function PF.MatchTemplate(text)
+    local ok, result = pcall(function()
+        if type(text) ~= "string" or #text < 3 then return nil end
+        local cached = templateCache[text]
+        if cached ~= nil then return cached or nil end
+        local pl
+        -- "Use: <spell description>" etc.: translate the description, re-attach a Polish prefix
+        for en, plPrefix in pairs(ITEM_PREFIXES) do
+            if text:sub(1, #en) == en then
+                local rest = text:sub(#en + 1)
+                local t = PF.Text or {}
+                local tr = (t.Spells and t.Spells[PF.Hash(rest)]) or (t.Items and t.Items[PF.Hash(rest)])
+                    or matchTemplateRaw(rest)
+                if tr then pl = plPrefix .. tr end
+                break
+            end
+        end
+        pl = pl or matchTemplateRaw(text) or translateLabelLine(text)
+        if templateCacheSize > 4000 then templateCache, templateCacheSize = {}, 0 end
+        templateCache[text] = pl or false
+        templateCacheSize = templateCacheSize + 1
+        return pl
+    end)
+    return ok and result or nil
+end
+
 function PF.TranslateTooltipLines(tooltip, table)
     if not (tooltip and table) then return end
     local name = tooltip:GetName()
@@ -267,8 +409,15 @@ function PF.TranslateTooltipLines(tooltip, table)
     for i = 1, tooltip:NumLines() do
         local fs = _G[name .. "TextLeft" .. i]
         local text = fs and fs:GetText()
-        local pl = text and table[PF.Hash(text)]
+        local pl = text and (table[PF.Hash(text)] or (i > 1 and PF.MatchTemplate(text)))
         if pl then PF.SetText(fs, pl, i == 1 and "title" or "body") end
+        -- right column: armor/weapon subtype ("Leather", "Totem"), speed, etc.
+        local rs = _G[name .. "TextRight" .. i]
+        local rtext = rs and rs:IsShown() and rs:GetText()
+        -- no comparisons on rtext: tooltip text can be a "secret string", which errors on ==/~=/#
+        -- (PF.Hash and PF.MatchTemplate are pcall-wrapped and treat it as unmatchable)
+        local rpl = rtext and (table[PF.Hash(rtext)] or PF.MatchTemplate(rtext))
+        if rpl then PF.SetText(rs, rpl, "body") end
     end
 end
 
@@ -318,7 +467,7 @@ function PF.TranslateFontStrings(root, table, depth)
     if not ok then return end
     if objType == "FontString" then
         local text = root:GetText()
-        local pl = text and table[PF.Hash(text)]
+        local pl = text and (table[PF.Hash(text)] or PF.MatchTemplate(text))
         if pl then PF.SetText(root, pl, "body") end
         return
     end
@@ -369,16 +518,27 @@ end
 function PF.RestoreTooltipFonts(tooltip)
     local name = tooltip and tooltip.GetName and tooltip:GetName()
     if not name then return end
-    for i = 1, tooltip:NumLines() do
-        for _, side in ipairs({ "TextLeft", "TextRight" }) do
-            local fs = _G[name .. side .. i]
+    -- Every line object that exists, not just 1..NumLines(): the count is already reset when the
+    -- tooltip is cleared, which left lines we had touched wearing our font in the next tooltip.
+    for i = 1, 60 do
+        local left, right = _G[name .. "TextLeft" .. i], _G[name .. "TextRight" .. i]
+        if not left and not right then break end
+        for _, fs in ipairs({ left or false, right or false }) do
             local f = fs and fs.pfFont
-            if f and f[1] then fs:SetFont(f[1], f[2] or 12, f[3]) end
+            if f and f[1] then
+                fs:SetFont(f[1], f[2] or 12, f[3])
+                fs.pfFont = nil -- restored; a stale copy would be forced onto a later, untouched reuse
+            end
         end
     end
 end
-if GameTooltip and GameTooltip.HookScript then
-    GameTooltip:HookScript("OnHide", function(self) pcall(PF.RestoreTooltipFonts, self) end)
+for _, tipName in ipairs({ "GameTooltip", "ItemRefTooltip", "ShoppingTooltip1", "ShoppingTooltip2",
+                           "ItemRefShoppingTooltip1", "ItemRefShoppingTooltip2" }) do
+    local tip = _G[tipName]
+    if tip and tip.HookScript then
+        pcall(tip.HookScript, tip, "OnHide", function(self) pcall(PF.RestoreTooltipFonts, self) end)
+        pcall(tip.HookScript, tip, "OnTooltipCleared", function(self) pcall(PF.RestoreTooltipFonts, self) end)
+    end
 end
 
 -- Recursively search a frame tree for a Button whose GetText() equals `label` -- lets us anchor
@@ -682,6 +842,8 @@ SlashCmdList.POLISHFOREVER = function(rawInput)
         status()
     elseif a == "dump" then
         PF:Dump()
+    elseif a == "plates" then
+        if PF.DebugPlates then PF.DebugPlates() end
     elseif a == "enableall" then
         PF:EnableAll()
         PF:Print("everything enabled -- /reload to apply")

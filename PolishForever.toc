@@ -17,6 +17,7 @@ Data\Spells.lua
 Data\Skills.lua
 Data\UI.lua
 Data\Places.lua
+Data\Patterns.lua
 Data\Misc.lua
 Data\Creatures.lua
 Data\Books.lua
@@ -29,6 +30,7 @@ Modules\Skills.lua
 Modules\Abilities.lua
 Modules\Items.lua
 Modules\Creatures.lua
+Modules\Places.lua
 Modules\Books.lua
 Modules\Speech.lua
 Modules\Menus.lua

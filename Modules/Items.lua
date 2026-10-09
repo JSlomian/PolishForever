@@ -45,6 +45,25 @@ function Items:OnEnable()
     if PF.HookTooltipPostCalls({ "Item" }, handler) then
         installed[#installed + 1] = "TooltipDataProcessor"
     end
+    -- Loot window and group-loot roll frames show item names as plain FontStrings.
+    local function lootRefresh()
+        if not PF:IsEnabled("Items") then return end
+        for _, f in ipairs({ _G.LootFrame, _G.GroupLootFrame1, _G.GroupLootFrame2,
+                             _G.GroupLootFrame3, _G.GroupLootFrame4 }) do
+            if f and f:IsShown() then PF.TranslateFontStrings(f, PF.Text.Items) end
+        end
+    end
+    local lootEvents = CreateFrame("Frame")
+    for _, e in ipairs({ "LOOT_OPENED", "LOOT_SLOT_CHANGED", "START_LOOT_ROLL", "LOOT_ROLLS_COMPLETE" }) do
+        pcall(lootEvents.RegisterEvent, lootEvents, e)
+    end
+    lootEvents:SetScript("OnEvent", function()
+        C_Timer.After(0, lootRefresh)
+        C_Timer.After(0.2, lootRefresh)
+    end)
+    for _, fn in ipairs({ "LootFrame_Update", "LootFrame_UpdateButton", "GroupLootFrame_OpenNewFrame" }) do
+        if type(_G[fn]) == "function" then hooksecurefunc(fn, lootRefresh) end
+    end
     local n = 0
     for _ in pairs(PF.Text.Items or {}) do n = n + 1 end
     PF:Print(("Items: %d translations loaded, hooked %s"):format(n, table.concat(installed, ", ")))

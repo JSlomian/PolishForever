@@ -54,9 +54,73 @@ end
 -- client errors on HookScript("OnTooltipSetUnit", ...), see PF.HookTooltipSetters) plus
 -- TooltipDataProcessor for modern clients. The name is always tooltip line 1; other lines
 -- (level, reaction, "Rare", ...) simply won't hash-match PF.Text.Creatures and stay English.
+-- Lines with variable parts can't hash-match, so they are matched by pattern:
+--   "Level 31" / "Level ?? Elite"  -> "Poziom 31" / "Poziom ?? Elita"
+--   "Corpse"                       -> "Zwłoki"
+--   "3/5 Torn Fin Eye"             -> objective counter, name looked up in Items then Creatures
+--   a quest-log quest title        -> its Polish title (via PF.Quests, matched through the log)
+local UNIT_WORDS = { Corpse = "Zwłoki", Elite = "Elita", Rare = "Rzadki", ["Rare Elite"] = "Rzadka Elita",
+                     Boss = "Boss", Dead = "Martwy",
+                     -- creature types (the tooltip's own line, or the tail of "Level N <type>")
+                     Beast = "Bestia", Dragonkin = "Smokowaty", Demon = "Demon", Elemental = "Żywiołak",
+                     Giant = "Olbrzym", Undead = "Nieumarły", Humanoid = "Humanoid", Critter = "Zwierzątko",
+                     Mechanical = "Mechaniczny", Totem = "Totem", Aberration = "Aberracja",
+                     ["Gas Cloud"] = "Obłok Gazu", ["Not specified"] = "Nieokreślony",
+                     ["Non-combat Pet"] = "Zwierzak Towarzyszący" }
+
+local function questLogTitles()
+    local map = {}
+    local getInfo = C_QuestLog and C_QuestLog.GetInfo
+    local n = (C_QuestLog and C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetNumQuestLogEntries())
+        or (GetNumQuestLogEntries and GetNumQuestLogEntries()) or 0
+    for i = 1, n do
+        local title, id, isHeader
+        if getInfo then
+            local info = getInfo(i)
+            if info then title, id, isHeader = info.title, info.questID, info.isHeader end
+        elseif GetQuestLogTitle then
+            title, _, _, isHeader, _, _, _, id = GetQuestLogTitle(i)
+        end
+        local q = id and not isHeader and PF.Quests and PF.Quests[id]
+        if title and q and q[1] and q[1] ~= "" then map[title] = q[1] end
+    end
+    return map
+end
+
+local function translateUnitExtras(tt)
+    local name = tt:GetName()
+    if not name then return end
+    local titles
+    for i = 2, tt:NumLines() do
+        local fs = _G[name .. "TextLeft" .. i]
+        local text = fs and fs:GetText()
+        if text and text ~= "" then
+            local pl
+            local lvl, rest = text:match("^Level (%S+)%s*(.*)$")
+            if lvl then
+                pl = "Poziom " .. lvl
+                if rest ~= "" then pl = pl .. " " .. (UNIT_WORDS[rest] or PF.Text.Creatures[PF.Hash(rest)] or rest) end
+            elseif UNIT_WORDS[text] then
+                pl = UNIT_WORDS[text]
+            else
+                local a, b, nm = text:match("^(%d+)/(%d+) (.+)$")
+                if nm then
+                    local tr = PF.Text.Items[PF.Hash(nm)] or PF.Text.Creatures[PF.Hash(nm)]
+                    if tr then pl = a .. "/" .. b .. " " .. tr end
+                else
+                    titles = titles or questLogTitles()
+                    pl = titles[text]
+                end
+            end
+            if pl and pl ~= text then PF.SetText(fs, pl, "body") end
+        end
+    end
+end
+
 local function tooltipHandler(tt)
     if PF:IsEnabled("Creatures") and PF:IsSubEnabled("Creatures", "tooltip") then
         PF.TranslateTooltipLines(tt, PF.Text.Creatures)
+        pcall(translateUnitExtras, tt)
     end
 end
 
@@ -112,6 +176,36 @@ local function hookNameRefresh()
                     if f and f:IsShown() then translateNameFS(f.name or _G[fname .. "TextureFrameName"]) end
                 end
             end)
+        end
+    end
+end
+
+-- /pl plates: for every visible nameplate, list its text fontstrings and whether the text is a
+-- "secret string" (unreadable, so it can't be matched) or readable and found in our table.
+function PF.DebugPlates()
+    if not (C_NamePlate and C_NamePlate.GetNamePlates) then PF:Print("no C_NamePlate") return end
+    local plates = C_NamePlate.GetNamePlates()
+    PF:Print(("%d nameplates; issecretvalue=%s"):format(#plates, tostring(type(_G.issecretvalue))))
+    for _, plate in ipairs(plates) do
+        local uf = plate.UnitFrame
+        local unit = plate.namePlateUnitToken or (uf and uf.unit) or "?"
+        local function report(fs, label)
+            local ok, text = pcall(fs.GetText, fs)
+            if not ok then PF:Print(unit .. " " .. label .. ": GetText error") return end
+            if _G.issecretvalue and _G.issecretvalue(text) then
+                PF:Print(unit .. " " .. label .. ": SECRET text")
+            elseif type(text) == "string" and text ~= "" then
+                local pl = PF.Text.Creatures[PF.Hash(text)]
+                PF:Print(("%s %s: %q -> %s"):format(unit, label, text, pl and ("found " .. pl) or "not in table"))
+            end
+        end
+        if uf then
+            for k, v in pairs(uf) do
+                if type(v) == "table" and v.GetObjectType and v:GetObjectType() == "FontString" then report(v, "UnitFrame." .. tostring(k)) end
+            end
+            for i, r in ipairs({ uf:GetRegions() }) do
+                if r.GetObjectType and r:GetObjectType() == "FontString" then report(r, "region" .. i) end
+            end
         end
     end
 end

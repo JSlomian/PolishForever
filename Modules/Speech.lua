@@ -62,6 +62,41 @@ local function filter(_, _, msg, ...)
     return false
 end
 
+-- Speech bubbles over NPCs' heads are separate frames the game fills from the original message,
+-- so the chat filter above never touches them. Right after a say/yell event, find the bubbles
+-- and translate their text the same way (the speaker's name is not known here, so lines that
+-- contain it are only matched when the stored key has no "%s").
+local function translateBubbleFS(fs)
+    local ok, text = pcall(fs.GetText, fs)
+    if not ok or type(text) ~= "string" then return end
+    local ok2, pl = pcall(translate, text, nil)
+    if ok2 and pl and pl ~= text then PF.SetText(fs, pl, "body") end
+end
+
+local function walkBubble(frame, depth)
+    if depth > 4 or not frame then return end
+    if frame.GetObjectType and frame:GetObjectType() == "FontString" then
+        translateBubbleFS(frame)
+        return
+    end
+    if frame.GetRegions then
+        for _, r in ipairs({ frame:GetRegions() }) do
+            if r.GetObjectType and r:GetObjectType() == "FontString" then translateBubbleFS(r) end
+        end
+    end
+    if frame.GetChildren then
+        for _, c in ipairs({ frame:GetChildren() }) do walkBubble(c, depth + 1) end
+    end
+end
+
+local function translateBubbles()
+    if not PF:IsEnabled("Speech") then return end
+    if not (C_ChatBubbles and C_ChatBubbles.GetAllChatBubbles) then return end
+    local ok, bubbles = pcall(C_ChatBubbles.GetAllChatBubbles)
+    if not (ok and bubbles) then return end
+    for _, b in ipairs(bubbles) do pcall(walkBubble, b, 0) end
+end
+
 local added = false
 function Speech:OnEnable()
     if added or not ChatFrame_AddMessageEventFilter then return end
@@ -69,6 +104,15 @@ function Speech:OnEnable()
     for _, event in ipairs(EVENTS) do
         ChatFrame_AddMessageEventFilter(event, filter)
     end
+    local bubbleEvents = CreateFrame("Frame")
+    for _, e in ipairs({ "CHAT_MSG_MONSTER_SAY", "CHAT_MSG_MONSTER_YELL" }) do
+        pcall(bubbleEvents.RegisterEvent, bubbleEvents, e)
+    end
+    bubbleEvents:SetScript("OnEvent", function()
+        -- the bubble is created just after the chat event; its text may be set a moment later
+        C_Timer.After(0.05, translateBubbles)
+        C_Timer.After(0.3, translateBubbles)
+    end)
     local n = 0
     for _ in pairs((PF.Text and PF.Text.Speech) or {}) do n = n + 1 end
     PF:Print(("NPC speech: %d lines loaded"):format(n))
