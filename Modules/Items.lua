@@ -31,6 +31,15 @@ function Items:OnEnable()
     local handler = function(self)
         if PF:IsEnabled("Items") then PF.TranslateTooltipLines(self, PF.Text.Items) end
     end
+    -- The "Sell Price:" line is appended by the money-line helpers after the item setter (and its
+    -- post-call) already ran, so the pass above never sees it: re-run on the helpers themselves.
+    for _, fn in ipairs({ "SetTooltipMoney", "GameTooltip_OnTooltipAddMoney", "GameTooltip_AddMoney" }) do
+        if type(_G[fn]) == "function" then
+            hooksecurefunc(fn, function(tt)
+                if type(tt) == "table" and tt.NumLines then pcall(handler, tt) end
+            end)
+        end
+    end
     local installed = {}
     for _, name in ipairs(TOOLTIPS) do
         local tt = _G[name]

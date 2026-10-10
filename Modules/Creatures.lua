@@ -124,6 +124,18 @@ local function tooltipHandler(tt)
     end
 end
 
+-- World-object tooltip (quest pickups lying on the ground, chests, ...): a separate tooltip data
+-- type ("Object"), so the Unit hook never fires for it. Line 1 is the object name, which for
+-- quest pickups usually equals an item name (Ambercorn) -> look it up in Items, then Creatures;
+-- the extras pass handles the quest-title line and the "1/2 Ambercorn" counter. Object names
+-- that exist in neither table stay English (no game-object name data pipeline yet).
+local function objectTooltipHandler(tt)
+    if not (PF:IsEnabled("Creatures") and PF:IsSubEnabled("Creatures", "tooltip")) then return end
+    PF.TranslateTooltipLines(tt, PF.Text.Items)
+    PF.TranslateTooltipLines(tt, PF.Text.Creatures)
+    pcall(translateUnitExtras, tt)
+end
+
 -- Nameplates & unit frames: target/focus/party name fontstrings plus every currently-visible
 -- world nameplate. Re-applied on the handful of events that actually change a shown name/unit
 -- (not polled every frame).
@@ -240,6 +252,9 @@ function Creatures:OnEnable()
     end
     if PF.HookTooltipPostCalls({ "Unit" }, tooltipHandler) then
         installed[#installed + 1] = "TooltipDataProcessor"
+    end
+    if PF.HookTooltipPostCalls({ "Object" }, objectTooltipHandler) then
+        installed[#installed + 1] = "TooltipDataProcessor(Object)"
     end
     local n = 0
     for _ in pairs(PF.Text.Creatures or {}) do n = n + 1 end

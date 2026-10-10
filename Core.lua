@@ -603,7 +603,12 @@ function PF.NewPreviewScope()
     -- scope's UI surface.
     function scope.ApplyText(fs, polish, kind)
         if not fs then return end
-        if fs.pfOriginal == nil then fs.pfOriginal = fs:GetText() or "" end
+        -- Blizzard reuses FontStrings (objective lines) for different quests, so the remembered
+        -- English must follow the live text, not the first quest that ever used this widget --
+        -- unless the live text is our own Polish (already applied).
+        local cur = fs:GetText() or ""
+        if fs.pfOriginal == nil or (cur ~= fs.pfPolish and cur ~= fs.pfOriginal) then fs.pfOriginal = cur end
+        if not (polish and polish ~= "") and cur ~= fs.pfPolish then fs.pfPolish = nil end -- widget now holds other, untranslated text
         if polish and polish ~= "" then
             fs.pfPolish = polish
             fs.pfKind = kind

@@ -35,6 +35,14 @@ end
 
 -- The quest currently on screen: the selected quest-log entry, or the NPC dialogue quest.
 local function CurrentQuestID()
+    -- Map-embedded quest log: the details pane can be opened without changing the log's "selected"
+    -- quest (tracker click, quest link, ...), so GetSelectedQuest() then still returns the quest
+    -- viewed before (confirmed: Report on "Soothing Turtle Bisque" filed quest 541). Ask the map
+    -- frame which quest its details pane is actually showing first.
+    if QuestMapFrame_GetDetailQuestID and QuestMapDetailsScrollFrame and QuestMapDetailsScrollFrame:IsShown() then
+        local ok, id = pcall(QuestMapFrame_GetDetailQuestID)
+        if ok and id and id > 0 then return id end
+    end
     if QuestInfoFrame and QuestInfoFrame.questLog then
         local id
         if C_QuestLog and C_QuestLog.GetSelectedQuest then

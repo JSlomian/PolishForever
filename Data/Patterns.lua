@@ -2337,7 +2337,7 @@ PF.Patterns = {
 {"^Activated for: (.-)$",false,{1},"Aktywowany dla: ",1},
 },
 ["Activati"]={
-{"^Activating Blade Flurry now engulfs you in Shadowflame, causing your attacks to ignore ([%d%.,%-]+) of your target's armor%.$",false,false,"Aktywowanie Blade Flurry spowija cię teraz w Shadowflame, sprawiając, że twoje ataki ignorują ",1," pancerza twojego celu."},
+{"^Activating Blade Flurry now engulfs you in Shadowflame, causing your attacks to ignore ([%d%.,%-]+) of your target's armor%.$",false,false,"Aktywowanie Wir Ostrzy spowija cię teraz w Shadowflame, sprawiając, że twoje ataki ignorują ",1," pancerza twojego celu."},
 {"^Activating this specialization will cost (.-)%. Are you sure you want to learn this specialization%?$",false,{1},"Aktywacja tej specjalizacji będzie kosztować ",1,". Na pewno chcesz nauczyć się tej specjalizacji?"},
 },
 ["Active A"]={
@@ -12745,7 +12745,7 @@ PF.Patterns = {
 {"^Your Flame Shock also grants ([%d%.,%-]+)%% increased chance to Block for (%d[%d%.,]*%s%a+) or until you Block an attack%.$",{2},false,"Twój Flame Shock również przyznaje ",1,"% zwiększoną szansę na Blok na ",2," lub do momentu zablokowania ataku."},
 },
 ["Your Flu"]={
-{"^Your Flurry talent grants an additional ([%d%.,%-]+)%% increase to your attack speed%.$",false,false,"Twój talent Nawałnica przyznaje dodatkowe ",1,"% zwiększenie prędkości ataku."},
+{"^Your Flurry talent grants an additional ([%d%.,%-]+)%% increase to your attack speed%.$",false,false,"Twój talent Wir Walki przyznaje dodatkowe ",1,"% zwiększenie prędkości ataku."},
 },
 ["Your Fro"]={
 {"^Your Frost damage spells with chilling effects have a ([%d%.,%-]+)%% chance to cause your next Fireball, Spellfrost Bolt, Balefire Bolt, or Frostfire Bolt spell to be instant cast and cost no mana%.$",false,false,"Twoje zaklęcia Obrażeń Mrozu z efektami schłodzenia mają ",1,"% szans powodowania, że następne Kula Ognia, Kula Mrozu-Ognia, Balefire Bolt, lub Frostfire Bolt będzie natychmiastowe i nie kosztuje many."},
@@ -13025,7 +13025,7 @@ PF.Patterns = {
 {"^Your current choice is '|cffffffff(.-)|r'$",false,{1},"Twój obecny wybór to '|cffffffff",1,"|r'"},
 },
 ["Your dam"]={
-{"^Your damaging finishing moves reduce the remaining cooldown of your Adrenaline Rush, Blade Flurry, Evasion, Sprint, and Vanish abilities by ([%d%.,%-]+) sec per combo point%.$",false,false,"Twoje ruchy na koniec zmniejszają pozostały czas odnowienia zdolności Adrenaline Rush, Blade Flurry, Evasion, Sprint i Vanish o ",1," sekund za punkt kombinacji."},
+{"^Your damaging finishing moves reduce the remaining cooldown of your Adrenaline Rush, Blade Flurry, Evasion, Sprint, and Vanish abilities by ([%d%.,%-]+) sec per combo point%.$",false,false,"Twoje ruchy na koniec zmniejszają pozostały czas odnowienia zdolności Adrenaline Rush, Wir Ostrzy, Evasion, Sprint i Vanish o ",1," sekund za punkt kombinacji."},
 {"^Your damaging non%-periodic spells increase your spell damage by ([%d%.,%-]+) for ([%d%.,%-]+)%.  If the target is player controlled, gain ([%d%.,%-]+) spell penetration for ([%d%.,%-]+) instead%.$",false,false,"Twoje bezpośrednie zaklęcia bez okresowych zadają obrażenia zwiększają obrażenia zaklęcia o ",1," przez ",2,". Jeśli cel jest kontrolowany przez gracza, zyskaj ",3," penetracji zaklęcia przez ",4," zamiast tego."},
 {"^Your damaging non%-periodic spells increase your spell damage by ([%d%.,%-]+) for ([%d%.,%-]+)%.  If the target is player controlled, gain ([%d%.,%-]+) spell penetration for ([%d%.,%-]+) instead%.$",false,false,"Twoje bezpośrednie zaklęcia bez okresowych zadają obrażenia zwiększają moc zaklęcia o ",1," przez ",2,". Jeśli cel jest kontrolowany przez gracza, zyskaj ",3," penetracji zaklęcia przez ",4," zamiast tego."},
 {"^Your damaging Shot abilities deal ([%d%.,%-]+)%% increased damage if the previous damaging Shot used was different than the current one%.$",false,false,"Twoje zadające obrażenia umiejętności typu Shot zadają o ",1,"% zwiększone obrażenia, jeśli poprzednio użyta umiejętność Shot była inna niż obecna."},
