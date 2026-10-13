@@ -131,8 +131,9 @@ end
 -- that exist in neither table stay English (no game-object name data pipeline yet).
 local function objectTooltipHandler(tt)
     if not (PF:IsEnabled("Creatures") and PF:IsSubEnabled("Creatures", "tooltip")) then return end
-    PF.TranslateTooltipLines(tt, PF.Text.Items)
-    PF.TranslateTooltipLines(tt, PF.Text.Creatures)
+    PF.Track("object-tooltip")
+    pcall(PF.TranslateTooltipLines, tt, PF.Text.Items)
+    pcall(PF.TranslateTooltipLines, tt, PF.Text.Creatures)
     pcall(translateUnitExtras, tt)
 end
 

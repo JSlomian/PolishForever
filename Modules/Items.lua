@@ -35,8 +35,17 @@ function Items:OnEnable()
     -- post-call) already ran, so the pass above never sees it: re-run on the helpers themselves.
     for _, fn in ipairs({ "SetTooltipMoney", "GameTooltip_OnTooltipAddMoney", "GameTooltip_AddMoney" }) do
         if type(_G[fn]) == "function" then
+            -- Deferred one frame (not run inside Blizzard's own tooltip layout) and re-entrancy
+            -- guarded, so this can never recurse or taint the money-line code path.
+            local busy = false
             hooksecurefunc(fn, function(tt)
-                if type(tt) == "table" and tt.NumLines then pcall(handler, tt) end
+                if busy or type(tt) ~= "table" or not tt.NumLines then return end
+                busy = true
+                C_Timer.After(0, function()
+                    busy = false
+                    PF.Track("money", fn)
+                    if tt.IsShown and tt:IsShown() then pcall(handler, tt) end
+                end)
             end)
         end
     end
@@ -79,9 +88,12 @@ function Items:OnEnable()
             if not PF:IsEnabled("Items") or type(msg) ~= "string" then return false end
             local ok, out = pcall(function()
                 local m = PF.TranslateLinks(msg)
-                return PF.MatchTemplate(m) or m
+                local tpl = PF.MatchTemplate(m)
+                if not tpl then PF.Track("loot-miss", (m:gsub("|", "||"))) end
+                return tpl or m
             end)
             if ok and out and out ~= msg then return false, out, ... end
+            if not ok then PF.Track("lootfilter-err", tostring(out)) end
             return false
         end
         for _, ev in ipairs({ "CHAT_MSG_LOOT", "CHAT_MSG_TRADESKILLS" }) do

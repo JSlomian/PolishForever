@@ -9,6 +9,7 @@
 ## X-Curse-Project-ID: 1706401
 
 Core.lua
+Tracking.lua
 Data\Declension.lua
 Data\Quests.lua
 Data\Gossip.lua

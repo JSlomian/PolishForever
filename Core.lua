@@ -289,8 +289,9 @@ local function applyEntry(entry, text)
     if #caps == 0 then return nil end
     -- Free-text values (from %s) must be a single word or a name we can translate; otherwise the
     -- template just matched an unrelated sentence and the result would be half English.
+    -- loot lines (history or item link) carry plain player names ("Malani Huntwalker"), which are not sentences
     local strs = entry[3]
-    if strs then
+    if strs and text:sub(1, 12) ~= "|HlootHistor" and not text:find("|Hitem:", 1, true) then
         for _, i in ipairs(strs) do
             local v = caps[i]
             -- hyperlinks / colour codes ("|cff...|Hitem:..|h[Name]|h|r") are values, not sentences
@@ -864,6 +865,8 @@ SlashCmdList.POLISHFOREVER = function(rawInput)
         status()
     elseif a == "dump" then
         PF:Dump()
+    elseif a == "trace" then
+        if b == "clear" then PF.ClearTrace() elseif PF.PrintTrace then PF.PrintTrace(tonumber(b)) end
     elseif a == "plates" then
         if PF.DebugPlates then PF.DebugPlates() end
     elseif a == "enableall" then
