@@ -358,9 +358,21 @@ local function translateWord(word)
     end
 end
 
+-- Lines the Forever client adds to the item-comparison tooltip (not in the client's string tables).
+local EXACT_LINES = {
+    ["If you replace this item, the following stat changes will occur:"] =
+        "Jeśli zastąpisz ten przedmiot, zmienią się następujące statystyki:",
+}
+
 local function translateLabelLine(text)
-    local pl = translateWord(text)
+    local pl = EXACT_LINES[text] or translateWord(text)
     if pl then return pl end
+    -- comparison stat change: "-21 Armor", "+7 Spell Healing"
+    local sign, stat = text:match("^([%+%-]%d[%d%.,]*)%s+(.+)$")
+    if sign then
+        pl = translateWord(stat)
+        if pl then return sign .. " " .. pl end
+    end
     local base = text:match("^(.-):%s*$")
     if base then
         pl = translateWord(base)

@@ -8,8 +8,7 @@ local _, PF = ...
 --   * Lua errors whose text mentions PolishForever.
 --   * PF.Track(tag, ...): breadcrumbs from the tooltip hooks, so the entries just before a
 --     problem show which hook was running.
--- A frozen client that gets killed never writes its SavedVariables; the blocked/error lines are
--- therefore also printed to chat the moment they happen, so they can be screenshotted.
+-- Entries are not printed to chat (blocked-action events can fire dozens of times); read them with /pl trace.
 local MAX = 300
 
 local function ring()
@@ -34,7 +33,6 @@ end
 
 local function report(kind, msg, withStack)
     pcall(push, kind, msg .. (withStack and ("\n" .. (debugstack(3, 8, 0) or "")) or ""))
-    if PF.Print then pcall(PF.Print, PF, "|cffff5555" .. kind .. "|r " .. msg) end
 end
 
 local frame = CreateFrame("Frame")

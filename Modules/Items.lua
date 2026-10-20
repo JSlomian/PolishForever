@@ -49,7 +49,29 @@ function Items:OnEnable()
             end)
         end
     end
+    -- Pieces the setter hooks never see: the "Equipped" header of a comparison tooltip and lines
+    -- added after the setter ("Sell Price", comparison stat changes). Re-run, deferred, whenever
+    -- one of these tooltips is shown, and walk its frame for plain FontStrings as well as its lines.
+    local labels = setmetatable({}, { __index = function(_, k)
+        local t = PF.Text or {}
+        return (t.UI and t.UI[k]) or (t.Items and t.Items[k])
+    end })
+    local function showPass(tt)
+        if not PF:IsEnabled("Items") then return end
+        pcall(handler, tt)
+        pcall(PF.TranslateFontStrings, tt, labels)
+    end
     local installed = {}
+    for _, name in ipairs({ "GameTooltip", "ItemRefTooltip", "ShoppingTooltip1", "ShoppingTooltip2",
+                            "ItemRefShoppingTooltip1", "ItemRefShoppingTooltip2" }) do
+        local tt = _G[name]
+        if tt and tt.HookScript then
+            pcall(tt.HookScript, tt, "OnShow", function(self)
+                C_Timer.After(0, function() if self:IsShown() then showPass(self) end end)
+                C_Timer.After(0.1, function() if self:IsShown() then showPass(self) end end)
+            end)
+        end
+    end
     for _, name in ipairs(TOOLTIPS) do
         local tt = _G[name]
         if tt then

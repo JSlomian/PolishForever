@@ -29,7 +29,7 @@ local function enabled()
     return not (PolishForeverDB and PolishForeverDB.noCapture)
 end
 
--- kind: "gossip" | "book". meta (all optional): sub, npc, name, title, page, zone.
+-- kind: "gossip" | "book" | "speech". meta (all optional): sub, npc, name, title, page, zone.
 -- Safe to call from any hook: never throws, never records the same text twice.
 function PF.Capture(kind, english, meta)
     if not enabled() then return end

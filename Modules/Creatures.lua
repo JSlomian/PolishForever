@@ -109,7 +109,8 @@ local function translateUnitExtras(tt)
                     if tr then pl = a .. "/" .. b .. " " .. tr end
                 else
                     titles = titles or questLogTitles()
-                    pl = titles[text]
+                    -- own log first, else any known quest title (listed for party members' quests)
+                    pl = titles[text] or (PF.QuestTitles and PF.QuestTitles[PF.Hash(text)])
                 end
             end
             if pl and pl ~= text then PF.SetText(fs, pl, "body") end
